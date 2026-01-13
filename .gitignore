@@ -63,3 +63,6 @@ app.*.map.json
 .vscode/
 .idea/
 *.iml
+
+
+.metadata
