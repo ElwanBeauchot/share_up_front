@@ -86,6 +86,7 @@ class DeviceService {
       "uuid": deviceUuid,
       "device_name": deviceName,
       "os": os,
+      "last_seen": DateTime.now().toIso8601String(),
       "geolocalisation": {
         "type": "Point",
         "coordinates": [position.longitude, position.latitude]
