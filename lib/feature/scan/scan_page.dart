@@ -43,7 +43,8 @@ class _ScanPageState extends State<ScanPage> {
           'Retour',
           style: TextStyle(
             color: Colors.black87,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w400,
+            fontSize: 15
           ),
         ),
       ),
@@ -59,21 +60,21 @@ class _ScanPageState extends State<ScanPage> {
                   const Text(
                     'Appareils à proximité',
                     style: TextStyle(
-                      fontSize: 29,
-                      fontWeight: FontWeight.w800,
+                      fontSize: 22,
+                      fontWeight: FontWeight.w600,
                       color: Colors.black87,
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 5),
 
                   Text(
                     state.scanning
                         ? 'Recherche en cours...'
                         : '${state.devices.length} appareil(s) détecté(s)',
                     style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black54.withOpacity(0.9),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.black54.withOpacity(0.7),
                     ),
                   ),
 
@@ -102,7 +103,7 @@ class _ScanPageState extends State<ScanPage> {
                     const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
-                      height: 58,
+                      height: 50,
                       child: ElevatedButton(
                         onPressed: controller.startScan,
                         style: ElevatedButton.styleFrom(
@@ -116,8 +117,8 @@ class _ScanPageState extends State<ScanPage> {
                         child: const Text(
                           'Rechercher à nouveau',
                           style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
@@ -168,18 +169,17 @@ class _DeviceCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
                     color: Colors.black87,
                   ),
                 ),
-                const SizedBox(height: 3),
                 Text(
                   device.platform,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black54,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.black54.withOpacity(0.5),
                   ),
                 ),
               ],
@@ -196,8 +196,8 @@ class _LeftIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 56,
-      height: 56,
+      width: 38,
+      height: 38,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: const LinearGradient(
@@ -220,7 +220,7 @@ class _LeftIcon extends StatelessWidget {
       child: const Icon(
         Icons.phone_iphone_rounded,
         color: Colors.white,
-        size: 26,
+        size: 19,
       ),
     );
   }
