@@ -5,7 +5,7 @@ class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
   void _goToScan(BuildContext context) {
-    Navigator.of(context).push(
+    Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const ScanPage()),
     );
   }
@@ -32,21 +32,23 @@ class HomePage extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 22),
             child: Column(
               children: [
-                const SizedBox(height: 40),
+                const SizedBox(height: 25),
                 const _TopBranding(),
+                const SizedBox(height: 30),
 
-                Expanded(
-                  child: Center(
-                    child: _MainCard(
-                      onScanPressed: () => _goToScan(context),
-                    ),
+                SizedBox(
+                  height: 250,
+                  child: _MainCard(
+                    onScanPressed: () => _goToScan(context),
                   ),
                 ),
 
+                const SizedBox(height: 30),
+
                 const _RowStats(),
-                const SizedBox(height: 16),
+                const SizedBox(height: 13),
                 const _BottomBranding(),
-                const SizedBox(height: 40),
+                const SizedBox(height: 20),
               ],
             ),
           ),
@@ -65,8 +67,8 @@ class _TopBranding extends StatelessWidget {
       children: [
         // Logo
         Container(
-          width: 72,
-          height: 72,
+          width: 62,
+          height: 62,
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.18),
             borderRadius: BorderRadius.circular(22),
@@ -74,15 +76,15 @@ class _TopBranding extends StatelessWidget {
           child: const Icon(
             Icons.share_rounded,
             color: Colors.white,
-            size: 34,
+            size: 25,
           ),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 10),
         const Text(
           'ShareUp',
           style: TextStyle(
             color: Colors.white,
-            fontSize: 37,
+            fontSize: 28,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -103,7 +105,7 @@ class _MainCard extends StatelessWidget {
       constraints: const BoxConstraints(minHeight: 320),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 26),
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 15),
         decoration: BoxDecoration(
           color: Colors.white.withOpacity(0.16),
           borderRadius: BorderRadius.circular(26),
@@ -115,27 +117,27 @@ class _MainCard extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(height: 40),
+            const SizedBox(height: 30),
             const Text(
               'Prêt à partager ?',
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 27,
+                fontSize: 24,
                 fontWeight: FontWeight.w700,
               ),
             ),
-            const SizedBox(height: 30),
+            const SizedBox(height: 20),
             Text(
               'Détectez les appareils à proximité et\ntransférez vos fichiers',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.white.withOpacity(0.85),
-                fontSize: 17,
+                fontSize: 14,
                 height: 1.35,
                 fontWeight: FontWeight.w500,
               ),
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,
               height: 60,
@@ -152,7 +154,7 @@ class _MainCard extends StatelessWidget {
                 child: const Text(
                   'Démarrer le scan',
                   style: TextStyle(
-                    fontSize: 19,
+                    fontSize: 16,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
