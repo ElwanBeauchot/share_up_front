@@ -59,7 +59,7 @@ class _ScanPageState extends State<ScanPage> {
                   const Text(
                     'Appareils à proximité',
                     style: TextStyle(
-                      fontSize: 29,
+                      fontSize: 24,
                       fontWeight: FontWeight.w800,
                       color: Colors.black87,
                     ),
@@ -71,7 +71,7 @@ class _ScanPageState extends State<ScanPage> {
                         ? 'Recherche en cours...'
                         : '${state.devices.length} appareil(s) détecté(s)',
                     style: TextStyle(
-                      fontSize: 18,
+                      fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: Colors.black54.withOpacity(0.9),
                     ),
@@ -102,7 +102,7 @@ class _ScanPageState extends State<ScanPage> {
                     const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
-                      height: 58,
+                      height: 40,
                       child: ElevatedButton(
                         onPressed: controller.startScan,
                         style: ElevatedButton.styleFrom(
@@ -116,7 +116,7 @@ class _ScanPageState extends State<ScanPage> {
                         child: const Text(
                           'Rechercher à nouveau',
                           style: TextStyle(
-                            fontSize: 18,
+                            fontSize: 13,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
@@ -196,8 +196,8 @@ class _LeftIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 56,
-      height: 56,
+      width: 38,
+      height: 38,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: const LinearGradient(
@@ -220,7 +220,7 @@ class _LeftIcon extends StatelessWidget {
       child: const Icon(
         Icons.phone_iphone_rounded,
         color: Colors.white,
-        size: 26,
+        size: 19,
       ),
     );
   }
