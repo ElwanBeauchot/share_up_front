@@ -39,7 +39,7 @@ class HomePage extends StatelessWidget {
                 SizedBox(
                   height: 250,
                   child: _MainCard(
-                    onScanPressed: () => _goToScan(context)
+                    onScanPressed: () async => _goToScan(context)
                   ),
                 ),
                 const SizedBox(height: 30),

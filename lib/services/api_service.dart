@@ -1,33 +1,52 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import '../config/api_config.dart';
 
 class ApiService {
+  static const Duration _timeout = Duration(seconds: 20);
+
   Future<Map<String, dynamic>> post(String endpoint, Map<String, dynamic> data) async {
     final url = Uri.parse('${ApiConfig.baseUrl}$endpoint');
 
-    final response = await http.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(data),
-    );
+    try {
+      final response = await http
+          .post(url, headers: {'Content-Type': 'application/json'}, body: jsonEncode(data))
+          .timeout(_timeout);
 
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      throw Exception('Erreur API: ${response.statusCode} - ${response.body}');
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      } else {
+        print('Erreur API POST: ${response.statusCode} - ${response.body}');
+        return {};
+      }
+    } on TimeoutException catch (e) {
+      print('Timeout API POST $endpoint: $e');
+      return {};
+    } catch (e) {
+      print('Erreur API POST $endpoint: $e');
+      return {};
     }
   }
 
   Future<Map<String, dynamic>> get(String endpoint) async {
     final url = Uri.parse('${ApiConfig.baseUrl}$endpoint');
 
-    final response = await http.get(url);
+    try {
+      final response = await http.get(url).timeout(_timeout);
 
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      throw Exception('Erreur API: ${response.statusCode} - ${response.body}');
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      } else {
+        print('Erreur API GET: ${response.statusCode} - ${response.body}');
+        return {};
+      }
+    } on TimeoutException catch (e) {
+      print('Timeout API GET $endpoint: $e');
+      return {};
+    } catch (e) {
+      print('Erreur API GET $endpoint: $e');
+      return {};
     }
   }
 }

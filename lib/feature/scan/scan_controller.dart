@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'scan_state.dart';
+import 'package:share_up_front/services/device_service.dart';
 
 class ScanController extends ValueNotifier<ScanState> {
   ScanController() : super(const ScanState());
 
+  final DeviceService _deviceService = DeviceService();
   Timer? _timer;
 
   @override
@@ -14,22 +16,42 @@ class ScanController extends ValueNotifier<ScanState> {
   }
 
   void startScan() {
-    // UI => loader, on vide la liste
     value = value.copyWith(scanning: true, devices: const []);
 
-    // Simule un scan (plus tard tu remplaces par BLE/WiFi/Serveur)
     _timer?.cancel();
-    _timer = Timer(const Duration(seconds: 2), () {
-      value = value.copyWith(
-        scanning: false,
-        devices: const [
-          ScanDevice(name: 'iPhone de Marie', platform: 'iOS'),
-          ScanDevice(name: 'Samsung Galaxy S23', platform: 'Android'),
-          ScanDevice(name: 'MacBook Pro', platform: 'macOS'),
-          ScanDevice(name: 'iPad Air', platform: 'iOS'),
-          ScanDevice(name: 'Pixel 8', platform: 'Android'),
-        ],
-      );
+    _timer = Timer(const Duration(seconds: 2), () async {
+      try {
+        final nearbyDevices = await _deviceService.getNearbyDevices();
+
+        // Conversion Map -> ScanDevice
+        final devices = nearbyDevices.map<ScanDevice>((d) {
+          final geo = d["geolocalisation"] ?? {};
+          final coords = geo["coordinates"] ?? [0.0, 0.0];
+
+          return ScanDevice(
+            uuid: d["uuid"] ?? "",
+            deviceName: d["device_name"] ?? "",
+            os: d["os"] ?? "",
+            lastSeen: d["last_seen"] ?? "",
+            geolocalisation: GeoLoc(
+              type: geo["type"] ?? "Point",
+              coordinates: [
+                (coords[0] as num).toDouble(),
+                (coords[1] as num).toDouble(),
+              ],
+            ),
+          );
+        }).toList();
+
+        value = value.copyWith(
+          scanning: false,
+          devices: devices,
+        );
+      } catch (e) {
+        print("Erreur scan: $e");
+        value = value.copyWith(scanning: false);
+      }
     });
+
   }
 }

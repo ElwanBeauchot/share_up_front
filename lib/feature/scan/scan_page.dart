@@ -216,7 +216,7 @@ class _DeviceCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  device.name,
+                  device.deviceName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -226,7 +226,7 @@ class _DeviceCard extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  device.platform,
+                  device.os,
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,

@@ -27,24 +27,24 @@ class DeviceService {
     String deviceName = "Unknown";
     String os = "Unknown";
 
-    // --- Device info ---
     try {
       final platform = await _deviceInfo.deviceInfo;
       if (platform is AndroidDeviceInfo) {
-        deviceName = platform.model ?? "Android Device";
+        final brand = platform.brand;
+        final model = platform.model;
+        deviceName = "$brand $model".trim();
+        if (deviceName.isEmpty) deviceName = "Android Device";
         os = "Android ${platform.version.release}";
       } else if (platform is IosDeviceInfo) {
-        deviceName = platform.name ?? "iPhone";
+        deviceName = platform.name;
         os = "iOS ${platform.systemVersion}";
       }
     } catch (e) {
       print("Erreur récupération device info: $e");
     }
 
-    // --- UUID ---
     final deviceUuid = await _getDeviceUuid();
 
-    // --- Géolocalisation ---
     Position position;
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -99,4 +99,35 @@ class DeviceService {
     final deviceData = await getDeviceData();
     return await _api.post('/devices/add_db', deviceData);
   }
+
+  // get nearby devices
+  Future<List<dynamic>> getNearbyDevices() async {
+    Position position;
+    try {
+      position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+    } catch (e) {
+      print("Erreur récupération position: $e");
+      return [];
+    }
+
+    final myUuid = await _getDeviceUuid();
+
+    final data = {
+      "longitude": position.longitude,
+      "latitude": position.latitude,
+      "uuid": myUuid,
+    };
+
+    final response = await _api.post('/devices/nearby', data);
+
+    if (response["devices"] == null) {
+      return [];
+    }
+
+    return response["devices"];
+  }
+
 }
+
