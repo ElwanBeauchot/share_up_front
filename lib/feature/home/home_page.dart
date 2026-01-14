@@ -36,28 +36,26 @@ class HomePage extends StatelessWidget {
                 const SizedBox(height: 25),
                 const _TopBranding(),
                 const SizedBox(height: 30),
-
                 SizedBox(
                   height: 250,
                   child: _MainCard(
                     onScanPressed: () async {
-                try {
-                final deviceService = DeviceService();
-                final result = await deviceService.sendDeviceData();
-                print("Device enregistré: $result");
-
-                _goToScan(context);
-                } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text("Erreur enregistrement device: $e")),
-                );
-                }
-                },
+                      try {
+                        final deviceService = DeviceService();
+                        final result = await deviceService.sendDeviceData();
+                        print("Device enregistré: $result");
+                        _goToScan(context);
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text("Erreur enregistrement device: $e"),
+                          ),
+                        );
+                      }
+                    },
                   ),
                 ),
-
                 const SizedBox(height: 30),
-
                 const _RowStats(),
                 const SizedBox(height: 13),
                 const _BottomBranding(),
@@ -78,7 +76,6 @@ class _TopBranding extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // Logo
         Container(
           width: 62,
           height: 62,
@@ -110,7 +107,7 @@ class _TopBranding extends StatelessWidget {
 class _MainCard extends StatelessWidget {
   const _MainCard({required this.onScanPressed});
 
-  final VoidCallback onScanPressed;
+  final Future<void> Function() onScanPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -154,24 +151,7 @@ class _MainCard extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               height: 60,
-              child: ElevatedButton(
-                onPressed: onScanPressed,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: const Color(0xFF4F46E5),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  elevation: 0,
-                ),
-                child: const Text(
-                  'Démarrer le scan',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
+              child: _ScanButton(onPressed: onScanPressed),
             ),
           ],
         ),
@@ -180,40 +160,121 @@ class _MainCard extends StatelessWidget {
   }
 }
 
-class _BottomBranding extends StatelessWidget {
-  const _BottomBranding();
+class _ScanButton extends StatefulWidget {
+  const _ScanButton({required this.onPressed});
+
+  final Future<void> Function() onPressed;
+
+  @override
+  State<_ScanButton> createState() => _ScanButtonState();
+}
+
+class _ScanButtonState extends State<_ScanButton> {
+  bool _hoveredOrPressed = false;
+
+  void _set(bool v) {
+    if (_hoveredOrPressed == v) return;
+    setState(() => _hoveredOrPressed = v);
+  }
+
+  Future<void> _handleTap() async {
+    await widget.onPressed();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.16),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.18),
-          width: 1,
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.history_rounded,
-            color: Colors.white.withOpacity(0.95),
-            size: 22,
-          ),
-          const SizedBox(width: 12),
-          Text(
-            'Historique des transferts',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.95),
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
+    return MouseRegion(
+      onEnter: (_) => _set(true),
+      onExit: (_) => _set(false),
+      child: GestureDetector(
+        onTapDown: (_) => _set(true),
+        onTapUp: (_) => _set(false),
+        onTapCancel: () => _set(false),
+        onTap: _handleTap,
+        child: AnimatedScale(
+          scale: _hoveredOrPressed ? 1.03 : 1.0,
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOut,
+          child: Container(
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const Text(
+              'Démarrer le scan',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF4F46E5),
+              ),
             ),
           ),
-        ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BottomBranding extends StatefulWidget {
+  const _BottomBranding();
+
+  @override
+  State<_BottomBranding> createState() => _BottomBrandingState();
+}
+
+class _BottomBrandingState extends State<_BottomBranding> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(22),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: () {
+            debugPrint('Historique des transferts');
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOut,
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+            decoration: BoxDecoration(
+              color: _hovered
+                  ? Colors.white.withOpacity(0.22)
+                  : Colors.white.withOpacity(0.16),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.18),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.history_rounded,
+                  color: Colors.white.withOpacity(0.95),
+                  size: 22,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Historique des transferts',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.95),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
