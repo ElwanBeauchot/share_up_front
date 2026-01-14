@@ -6,7 +6,7 @@ class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
   void _goToScan(BuildContext context) {
-    Navigator.of(context).pushReplacement(
+    Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const ScanPage()),
     );
   }

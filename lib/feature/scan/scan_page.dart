@@ -35,19 +35,29 @@ class _ScanPageState extends State<ScanPage> {
         backgroundColor: bg,
         elevation: 0,
         scrolledUnderElevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: const Text(
-          'Retour',
-          style: TextStyle(
-            color: Colors.black87,
-            fontWeight: FontWeight.w400,
-            fontSize: 15
+
+        leadingWidth: 100,
+
+        leading: InkWell(
+          onTap: () => Navigator.of(context).pop(),
+          child: Row(
+            children: const [
+              SizedBox(width: 8),
+              Icon(Icons.arrow_back, color: Colors.black87),
+              SizedBox(width: 4),
+              Text(
+                'Retour',
+                style: TextStyle(
+                  color: Colors.black87,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ],
           ),
         ),
       ),
+
       body: SafeArea(
         child: ValueListenableBuilder<ScanState>(
           valueListenable: controller,
