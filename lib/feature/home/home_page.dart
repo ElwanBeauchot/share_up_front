@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../scan/scan_page.dart';
+import '../../services/device_service.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -39,7 +40,19 @@ class HomePage extends StatelessWidget {
                 SizedBox(
                   height: 250,
                   child: _MainCard(
-                    onScanPressed: () => _goToScan(context),
+                    onScanPressed: () async {
+                try {
+                final deviceService = DeviceService();
+                final result = await deviceService.sendDeviceData();
+                print("Device enregistré: $result");
+
+                _goToScan(context);
+                } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text("Erreur enregistrement device: $e")),
+                );
+                }
+                },
                   ),
                 ),
 
