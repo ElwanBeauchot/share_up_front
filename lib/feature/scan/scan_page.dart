@@ -35,9 +35,7 @@ class _ScanPageState extends State<ScanPage> {
         backgroundColor: bg,
         elevation: 0,
         scrolledUnderElevation: 0,
-
         leadingWidth: 100,
-
         leading: InkWell(
           onTap: () => Navigator.of(context).pop(),
           child: Row(
@@ -57,7 +55,6 @@ class _ScanPageState extends State<ScanPage> {
           ),
         ),
       ),
-
       body: SafeArea(
         child: ValueListenableBuilder<ScanState>(
           valueListenable: controller,
@@ -76,7 +73,6 @@ class _ScanPageState extends State<ScanPage> {
                     ),
                   ),
                   const SizedBox(height: 5),
-
                   Text(
                     state.scanning
                         ? 'Recherche en cours...'
@@ -87,7 +83,6 @@ class _ScanPageState extends State<ScanPage> {
                       color: Colors.black54.withOpacity(0.7),
                     ),
                   ),
-
                   const SizedBox(height: 18),
 
                   Expanded(
@@ -104,7 +99,12 @@ class _ScanPageState extends State<ScanPage> {
                       separatorBuilder: (_, __) => const SizedBox(height: 14),
                       itemBuilder: (context, index) {
                         final d = state.devices[index];
-                        return _DeviceCard(device: d);
+
+                        // ✅ Animation style "spawn from left"
+                        return _SlideFadeIn(
+                          delay: Duration(milliseconds: 70 * index),
+                          child: _DeviceCard(device: d),
+                        );
                       },
                     ),
                   ),
@@ -144,6 +144,48 @@ class _ScanPageState extends State<ScanPage> {
   }
 }
 
+class _SlideFadeIn extends StatefulWidget {
+  const _SlideFadeIn({
+    required this.child,
+    required this.delay,
+  });
+
+  final Widget child;
+  final Duration delay;
+
+  @override
+  State<_SlideFadeIn> createState() => _SlideFadeInState();
+}
+
+class _SlideFadeInState extends State<_SlideFadeIn> {
+  bool _show = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    Future.delayed(widget.delay, () {
+      if (!mounted) return;
+      setState(() => _show = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedOpacity(
+      opacity: _show ? 1 : 0,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOut,
+      child: AnimatedSlide(
+        offset: _show ? Offset.zero : const Offset(-0.06, 0),
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOut,
+        child: widget.child,
+      ),
+    );
+  }
+}
+
 class _DeviceCard extends StatelessWidget {
   const _DeviceCard({required this.device});
 
@@ -169,7 +211,6 @@ class _DeviceCard extends StatelessWidget {
         children: [
           const _LeftIcon(),
           const SizedBox(width: 14),
-
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -200,6 +241,7 @@ class _DeviceCard extends StatelessWidget {
     );
   }
 }
+
 class _LeftIcon extends StatelessWidget {
   const _LeftIcon();
 
@@ -235,4 +277,3 @@ class _LeftIcon extends StatelessWidget {
     );
   }
 }
-
