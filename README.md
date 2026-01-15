@@ -37,3 +37,28 @@ sequenceDiagram
     B->>B: Message reçu
     B->>B: Afficher message
 ```
+
+# Diagramme de séquence - Scan des appareils à proximité
+```mermaid
+sequenceDiagram
+actor U as User
+
+    box purple share_up_front 
+    participant X as Screen
+    participant A as Service
+    end
+
+    box blue share_up_back
+    participant S as Serveur
+    end
+
+    participant BDD@{ "type" : "database" }
+
+    U->>X: Bouton "Démarrer le Scan"
+    X->A: getNearbyDevices()
+    A->>S: HTTP POST /devices/nearby
+    S->>BDD: devices_collection.find(query)
+    BDD->>S: return(devices)
+    S->>A: return(response["devices"])
+    A->>X: Affichage de la liste des devices
+```

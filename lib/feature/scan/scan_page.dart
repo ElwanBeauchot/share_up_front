@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_colors.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
@@ -108,12 +109,10 @@ class _ScanPageState extends State<ScanPage> {
 
   @override
   Widget build(BuildContext context) {
-    const bg = Color(0xFFF4F6FF);
-
     return Scaffold(
-      backgroundColor: bg,
+      backgroundColor: AppColors.scanBg,
       appBar: AppBar(
-        backgroundColor: bg,
+        backgroundColor: AppColors.scanBg,
         elevation: 0,
         scrolledUnderElevation: 0,
         leadingWidth: 100,
@@ -202,7 +201,7 @@ class _ScanPageState extends State<ScanPage> {
                       child: ElevatedButton(
                         onPressed: controller.startScan,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF4F46E5),
+                          backgroundColor: AppColors.indigo,
                           foregroundColor: Colors.white,
                           elevation: 0,
                           shape: RoundedRectangleBorder(
@@ -338,11 +337,8 @@ class _LeftIcon extends StatelessWidget {
       height: 38,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF4F46E5), Color(0xFF9333EA), Color(0xFFB832F2)],
-        ),
+        gradient: AppColors.brandGradient,
+
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.08),
