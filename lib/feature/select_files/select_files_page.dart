@@ -533,17 +533,17 @@ class _FileRow extends StatelessWidget {
   Color _colorFor(FileKind kind) {
     switch (kind) {
       case FileKind.image:
-        return const Color(0xFF2563EB);
+        return AppColors.fileImage;
       case FileKind.pdf:
-        return const Color(0xFFF97316);
+        return AppColors.filePdf;
       case FileKind.audio:
-        return const Color(0xFF22C55E);
+        return AppColors.fileAudio;
       case FileKind.video:
-        return const Color(0xFF8B5CF6);
+        return AppColors.fileVideo;
       case FileKind.ppt:
-        return const Color(0xFFF97316);
+        return AppColors.filePpt;
       case FileKind.other:
-        return const Color(0xFF64748B);
+        return AppColors.fileOther;
     }
   }
 }

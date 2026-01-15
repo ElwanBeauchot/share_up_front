@@ -5,7 +5,6 @@ import 'scan_state.dart';
 import '../../services/p2p_service.dart';
 import '../select_files/select_files_page.dart';
 
-
 class ScanPage extends StatefulWidget {
   const ScanPage({super.key});
 
@@ -17,16 +16,20 @@ class _ScanPageState extends State<ScanPage> {
   late final ScanController controller;
   final P2PService _p2pService = P2PService();
 
+  // ✅ Sert à forcer la reconstruction de la liste pour rejouer l'animation
+  int _animationSeed = 0;
+
   @override
   void initState() {
     super.initState();
+
     controller = ScanController();
     controller.startScan();
+
     _p2pService.onMessageReceived = (msg) {
-      if (mounted) {
-        _showMessageDialog(msg);
-      }
+      if (mounted) _showMessageDialog(msg);
     };
+
     _startListeningForConnections();
   }
 
@@ -47,15 +50,24 @@ class _ScanPageState extends State<ScanPage> {
   Future<void> _handleDeviceTap(ScanDevice device) async {
     if (!mounted) return;
 
-    Navigator.of(context).push(
+    // ✅ On attend le retour de SelectFilesPage
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => SelectFilesPage(
           targetDeviceName: device.deviceName,
         ),
       ),
     );
-  }
 
+    // ✅ Au retour : on force la liste à se reconstruire => animation rejoue
+    if (!mounted) return;
+    setState(() {
+      _animationSeed++;
+    });
+
+    // (Optionnel) si tu veux aussi relancer un scan en revenant :
+    // controller.startScan();
+  }
 
   void _showMessageDialog(String message) {
     showDialog(
@@ -132,36 +144,37 @@ class _ScanPageState extends State<ScanPage> {
                     ),
                   ),
                   const SizedBox(height: 18),
-
                   Expanded(
                     child: state.scanning
                         ? const Center(
-                            child: SizedBox(
-                              width: 34,
-                              height: 34,
-                              child: CircularProgressIndicator(strokeWidth: 3),
-                            ),
-                          )
+                      child: SizedBox(
+                        width: 34,
+                        height: 34,
+                        child: CircularProgressIndicator(strokeWidth: 3),
+                      ),
+                    )
                         : ListView.separated(
+                      // ✅ La clé change au retour => Flutter recrée la liste => animations rejouent
+                      key: ValueKey('devices_list_$_animationSeed'),
                       itemCount: state.devices.length,
                       separatorBuilder: (_, __) =>
                       const SizedBox(height: 14),
                       itemBuilder: (context, index) {
                         final d = state.devices[index];
 
-
-                              // ✅ Animation style "spawn from left"
-                              return _SlideFadeIn(
-                                delay: Duration(milliseconds: 70 * index),
-                                child: _DeviceCard(
-                                  device: d,
-                                  onTap: () => _handleDeviceTap(d),
-                                ),
-                              );
-                            },
+                        return _SlideFadeIn(
+                          // ✅ key aussi sur l'item (encore plus robuste)
+                          key: ValueKey(
+                              'device_${d.deviceName}_$_animationSeed'),
+                          delay: Duration(milliseconds: 70 * index),
+                          child: _DeviceCard(
+                            device: d,
+                            onTap: () => _handleDeviceTap(d),
                           ),
+                        );
+                      },
+                    ),
                   ),
-
                   if (!state.scanning) ...[
                     const SizedBox(height: 16),
                     SizedBox(
@@ -198,7 +211,11 @@ class _ScanPageState extends State<ScanPage> {
 }
 
 class _SlideFadeIn extends StatefulWidget {
-  const _SlideFadeIn({required this.child, required this.delay});
+  const _SlideFadeIn({
+    super.key,
+    required this.child,
+    required this.delay,
+  });
 
   final Widget child;
   final Duration delay;
@@ -237,7 +254,10 @@ class _SlideFadeInState extends State<_SlideFadeIn> {
 }
 
 class _DeviceCard extends StatelessWidget {
-  const _DeviceCard({required this.device, required this.onTap});
+  const _DeviceCard({
+    required this.device,
+    required this.onTap,
+  });
 
   final ScanDevice device;
   final VoidCallback onTap;
@@ -307,7 +327,6 @@ class _LeftIcon extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: AppColors.brandGradient,
-
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.08),

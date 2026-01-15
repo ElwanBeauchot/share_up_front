@@ -36,10 +36,9 @@ class SelectFilesController extends ChangeNotifier {
   }
 
   Future<void> addFilesFromDevice() async {
-    // On autorise tout type: images, pdf, audio, vidéo, pptx...
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
-      withData: false, // on évite de charger en RAM
+      withData: false,
       type: FileType.any,
     );
 
@@ -61,9 +60,6 @@ class SelectFilesController extends ChangeNotifier {
     })
         .toList();
 
-    // Tu peux décider:
-    // - soit on ajoute au top
-    // - soit on ajoute en bas
     final merged = [...newFiles, ..._state.files];
 
     _state = _state.copyWith(files: merged);
