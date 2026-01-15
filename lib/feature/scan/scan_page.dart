@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 import 'scan_controller.dart';
 import 'scan_state.dart';
 import '../../services/p2p_service.dart';
@@ -43,13 +46,13 @@ class _ScanPageState extends State<ScanPage> {
 
   Future<void> _handleDeviceTap(ScanDevice device) async {
     await _p2pService.connectToDevice(device.uuid);
-    await _p2pService.sendMessage();
+    await _p2pService.sendFile();
 
     if (!mounted) return;
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        content: Text('Message envoyé à ${device.deviceName}'),
+        content: Text('Fichier envoyé à ${device.deviceName}'),
         actions: [
           TextButton(
             onPressed: () {
@@ -63,11 +66,12 @@ class _ScanPageState extends State<ScanPage> {
     ).then((_) => _p2pService.disconnect());
   }
 
-  void _showMessageDialog(String message) {
+  void _showDialog(String text) {
+    if (!mounted) return;
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        content: Text('Message reçu: $message'),
+        content: Text(text),
         actions: [
           TextButton(
             onPressed: () {
@@ -79,6 +83,27 @@ class _ScanPageState extends State<ScanPage> {
         ],
       ),
     ).then((_) => _p2pService.disconnect());
+  }
+
+  Future<void> _showMessageDialog(String message) async {
+    if (message.startsWith('data:image')) {
+      try {
+        final base64String = message.split(',')[1];
+        final imageBytes = base64Decode(base64String);
+        final directory =
+            await getDownloadsDirectory() ??
+            await getApplicationDocumentsDirectory();
+        final file = File(
+          '${directory.path}/image_${DateTime.now().millisecondsSinceEpoch}.png',
+        );
+        await file.writeAsBytes(imageBytes);
+        _showDialog('Image sauvegardée');
+      } catch (e) {
+        _showDialog('Erreur sauvegarde image');
+      }
+    } else {
+      _showDialog('Message: $message');
+    }
   }
 
   @override

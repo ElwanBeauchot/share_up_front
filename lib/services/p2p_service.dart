@@ -1,5 +1,7 @@
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:flutter/services.dart';
 import 'dart:async';
+import 'dart:convert';
 import 'api_service.dart';
 import 'device_service.dart';
 
@@ -32,17 +34,26 @@ class P2PService {
     });
 
     _peerConnection!.onIceCandidate = (c) => _sendIceCandidate(c);
+
+    _peerConnection!.onConnectionState = (state) {
+      if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected ||
+          state == RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
+          state == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
+        print('[P2P] État: $state');
+      }
+    };
+
     _peerConnection!.onDataChannel = (ch) {
       _dataChannel = ch;
-      _dataChannel!.onMessage = (msg) =>
-          onMessageReceived?.call(msg.text ?? '');
+      _dataChannel!.onMessage = (msg) => onMessageReceived?.call(msg.text);
     };
 
     _dataChannel = await _peerConnection!.createDataChannel(
       'messages',
       RTCDataChannelInit(),
     );
-    _dataChannel!.onMessage = (msg) => onMessageReceived?.call(msg.text ?? '');
+
+    _dataChannel!.onMessage = (msg) => onMessageReceived?.call(msg.text);
 
     final offer = await _peerConnection!.createOffer();
     await _peerConnection!.setLocalDescription(offer);
@@ -74,7 +85,7 @@ class P2PService {
       if (_myUuid == null) return;
       final res = await _api.get('/p2p/messages/$_myUuid');
       final msgs = res['messages'] as List?;
-      if (msgs == null) return;
+      if (msgs == null || msgs.isEmpty) return;
       for (var msg in msgs) {
         await _handleSignalMessage(msg);
       }
@@ -94,18 +105,28 @@ class P2PService {
           {'urls': 'stun:stun.l.google.com:19302'},
         ],
       });
+
       _peerConnection!.onIceCandidate = (c) => _sendIceCandidate(c);
+      _peerConnection!.onConnectionState = (state) {
+        if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected ||
+            state == RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
+            state ==
+                RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
+          print('[P2P] État: $state');
+        }
+      };
       _peerConnection!.onDataChannel = (ch) {
         _dataChannel = ch;
-        _dataChannel!.onMessage = (msg) {
-          onMessageReceived?.call(msg.text ?? '');
-        };
+        _dataChannel!.onMessage = (msg) => onMessageReceived?.call(msg.text);
       };
+
       await _peerConnection!.setRemoteDescription(
         RTCSessionDescription(msg['sdp'], 'offer'),
       );
+
       final answer = await _peerConnection!.createAnswer();
       await _peerConnection!.setLocalDescription(answer);
+
       await _api.post('/p2p/answer', {
         'from': _myUuid,
         'to': msg['from'],
@@ -124,10 +145,23 @@ class P2PService {
     }
   }
 
-  Future<void> sendMessage() async {
+  Future<void> sendFile() async {
+    Uint8List imageBytes;
+    try {
+      final byteData = await rootBundle.load(
+        'android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png',
+      );
+      imageBytes = byteData.buffer.asUint8List();
+    } catch (e) {
+      return;
+    }
+
+    final base64Image = base64Encode(imageBytes);
+    final content = 'data:image/png;base64,$base64Image';
+
     for (int i = 0; i < 30; i++) {
       if (_dataChannel?.state == RTCDataChannelState.RTCDataChannelOpen) {
-        _dataChannel!.send(RTCDataChannelMessage('Hello P2P'));
+        _dataChannel!.send(RTCDataChannelMessage(content));
         return;
       }
       await Future.delayed(const Duration(milliseconds: 500));

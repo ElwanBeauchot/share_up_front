@@ -44,9 +44,7 @@ class DeviceService {
         deviceName = platform.name;
         os = "iOS ${platform.systemVersion}";
       }
-    } catch (e) {
-      print("Erreur récupération device info: $e");
-    }
+    } catch (e) {}
 
     final deviceUuid = await _getDeviceUuid();
 
@@ -73,7 +71,6 @@ class DeviceService {
         desiredAccuracy: LocationAccuracy.high,
       );
     } catch (e) {
-      print("Erreur récupération position: $e");
       position = Position(
         longitude: 0.0,
         latitude: 0.0,
@@ -114,7 +111,6 @@ class DeviceService {
         desiredAccuracy: LocationAccuracy.high,
       );
     } catch (e) {
-      print("Erreur récupération position: $e");
       return [];
     }
 

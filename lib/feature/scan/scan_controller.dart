@@ -48,7 +48,6 @@ class ScanController extends ValueNotifier<ScanState> {
           devices: devices,
         );
       } catch (e) {
-        print("Erreur scan: $e");
         value = value.copyWith(scanning: false);
       }
     });

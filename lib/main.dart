@@ -7,10 +7,9 @@ Future<void> main() async {
 
   try {
     final deviceService = DeviceService();
-    final result = await deviceService.sendDeviceData();
-    print("Device enregistré avant affichage de l'app: $result");
+    await deviceService.sendDeviceData();
   } catch (e) {
-    print("Erreur enregistrement device: $e");
+    print('[APP] Erreur enregistrement device');
   }
 
   runApp(const ShareUpApp());

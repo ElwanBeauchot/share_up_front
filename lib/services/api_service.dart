@@ -17,14 +17,12 @@ class ApiService {
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as Map<String, dynamic>;
       } else {
-        print('Erreur API POST: ${response.statusCode} - ${response.body}');
         return {};
       }
     } on TimeoutException catch (e) {
-      print('Timeout API POST $endpoint: $e');
+      print('[API] Timeout: $endpoint');
       return {};
     } catch (e) {
-      print('Erreur API POST $endpoint: $e');
       return {};
     }
   }
@@ -38,14 +36,12 @@ class ApiService {
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as Map<String, dynamic>;
       } else {
-        print('Erreur API GET: ${response.statusCode} - ${response.body}');
         return {};
       }
     } on TimeoutException catch (e) {
-      print('Timeout API GET $endpoint: $e');
+      print('[API] Timeout: $endpoint');
       return {};
     } catch (e) {
-      print('Erreur API GET $endpoint: $e');
       return {};
     }
   }
