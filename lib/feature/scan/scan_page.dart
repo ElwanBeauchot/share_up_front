@@ -3,6 +3,8 @@ import '../../theme/app_colors.dart';
 import 'scan_controller.dart';
 import 'scan_state.dart';
 import '../../services/p2p_service.dart';
+import '../select_files/select_files_page.dart';
+
 
 class ScanPage extends StatefulWidget {
   const ScanPage({super.key});
@@ -43,26 +45,17 @@ class _ScanPageState extends State<ScanPage> {
   }
 
   Future<void> _handleDeviceTap(ScanDevice device) async {
-    await _p2pService.connectToDevice(device.uuid);
-    await _p2pService.sendMessage();
-
     if (!mounted) return;
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        content: Text('Message envoyé à ${device.deviceName}'),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _p2pService.disconnect();
-            },
-            child: const Text('OK'),
-          ),
-        ],
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SelectFilesPage(
+          targetDeviceName: device.deviceName,
+        ),
       ),
-    ).then((_) => _p2pService.disconnect());
+    );
   }
+
 
   void _showMessageDialog(String message) {
     showDialog(
