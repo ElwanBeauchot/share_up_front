@@ -22,6 +22,11 @@ class DeviceService {
     return uuid;
   }
 
+  /// Récupère l'UUID du device (méthode publique)
+  Future<String> getDeviceUuid() async {
+    return _getDeviceUuid();
+  }
+
   /// Récupère les infos du device + géolocalisation
   Future<Map<String, dynamic>> getDeviceData() async {
     String deviceName = "Unknown";
@@ -65,7 +70,8 @@ class DeviceService {
       }
 
       position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high);
+        desiredAccuracy: LocationAccuracy.high,
+      );
     } catch (e) {
       print("Erreur récupération position: $e");
       position = Position(
@@ -89,8 +95,8 @@ class DeviceService {
       "last_seen": DateTime.now().toIso8601String(),
       "geolocalisation": {
         "type": "Point",
-        "coordinates": [position.longitude, position.latitude]
-      }
+        "coordinates": [position.longitude, position.latitude],
+      },
     };
   }
 
@@ -128,6 +134,4 @@ class DeviceService {
 
     return response["devices"];
   }
-
 }
-

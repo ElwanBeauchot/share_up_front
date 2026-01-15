@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'scan_controller.dart';
 import 'scan_state.dart';
+import '../../services/p2p_service.dart';
 
 class ScanPage extends StatefulWidget {
   const ScanPage({super.key});
@@ -11,18 +12,73 @@ class ScanPage extends StatefulWidget {
 
 class _ScanPageState extends State<ScanPage> {
   late final ScanController controller;
+  final P2PService _p2pService = P2PService();
 
   @override
   void initState() {
     super.initState();
     controller = ScanController();
     controller.startScan();
+    _p2pService.onMessageReceived = (msg) {
+      if (mounted) {
+        _showMessageDialog(msg);
+      }
+    };
+    _startListeningForConnections();
   }
 
   @override
   void dispose() {
+    _p2pService.disconnect();
     controller.dispose();
     super.dispose();
+  }
+
+  void _startListeningForConnections() {
+    Future.delayed(const Duration(seconds: 2), () {
+      if (!mounted) return;
+      _p2pService.startListening();
+    });
+  }
+
+  Future<void> _handleDeviceTap(ScanDevice device) async {
+    await _p2pService.connectToDevice(device.uuid);
+    await _p2pService.sendMessage();
+
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        content: Text('Message envoyé à ${device.deviceName}'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _p2pService.disconnect();
+            },
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    ).then((_) => _p2pService.disconnect());
+  }
+
+  void _showMessageDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        content: Text('Message reçu: $message'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _p2pService.disconnect();
+            },
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    ).then((_) => _p2pService.disconnect());
   }
 
   @override
@@ -88,25 +144,29 @@ class _ScanPageState extends State<ScanPage> {
                   Expanded(
                     child: state.scanning
                         ? const Center(
-                      child: SizedBox(
-                        width: 34,
-                        height: 34,
-                        child: CircularProgressIndicator(strokeWidth: 3),
-                      ),
-                    )
+                            child: SizedBox(
+                              width: 34,
+                              height: 34,
+                              child: CircularProgressIndicator(strokeWidth: 3),
+                            ),
+                          )
                         : ListView.separated(
-                      itemCount: state.devices.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 14),
-                      itemBuilder: (context, index) {
-                        final d = state.devices[index];
+                            itemCount: state.devices.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 14),
+                            itemBuilder: (context, index) {
+                              final d = state.devices[index];
 
-                        // ✅ Animation style "spawn from left"
-                        return _SlideFadeIn(
-                          delay: Duration(milliseconds: 70 * index),
-                          child: _DeviceCard(device: d),
-                        );
-                      },
-                    ),
+                              // ✅ Animation style "spawn from left"
+                              return _SlideFadeIn(
+                                delay: Duration(milliseconds: 70 * index),
+                                child: _DeviceCard(
+                                  device: d,
+                                  onTap: () => _handleDeviceTap(d),
+                                ),
+                              );
+                            },
+                          ),
                   ),
 
                   if (!state.scanning) ...[
@@ -145,10 +205,7 @@ class _ScanPageState extends State<ScanPage> {
 }
 
 class _SlideFadeIn extends StatefulWidget {
-  const _SlideFadeIn({
-    required this.child,
-    required this.delay,
-  });
+  const _SlideFadeIn({required this.child, required this.delay});
 
   final Widget child;
   final Duration delay;
@@ -187,56 +244,60 @@ class _SlideFadeInState extends State<_SlideFadeIn> {
 }
 
 class _DeviceCard extends StatelessWidget {
-  const _DeviceCard({required this.device});
+  const _DeviceCard({required this.device, required this.onTap});
 
   final ScanDevice device;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.black.withOpacity(0.06)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 18,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          const _LeftIcon(),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  device.deviceName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
-                ),
-                Text(
-                  device.os,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.black54.withOpacity(0.5),
-                  ),
-                ),
-              ],
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.black.withOpacity(0.06)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.06),
+              blurRadius: 18,
+              offset: const Offset(0, 10),
             ),
-          ),
-        ],
+          ],
+        ),
+        child: Row(
+          children: [
+            const _LeftIcon(),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    device.deviceName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  Text(
+                    device.os,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.black54.withOpacity(0.5),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -255,11 +316,7 @@ class _LeftIcon extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF4F46E5),
-            Color(0xFF9333EA),
-            Color(0xFFB832F2),
-          ],
+          colors: [Color(0xFF4F46E5), Color(0xFF9333EA), Color(0xFFB832F2)],
         ),
         boxShadow: [
           BoxShadow(
