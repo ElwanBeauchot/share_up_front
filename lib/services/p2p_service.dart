@@ -70,7 +70,7 @@ class P2PService {
 
   void _startPolling() {
     _pollingTimer?.cancel();
-    _pollingTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+    _pollingTimer = Timer.periodic(Duration(seconds: 2), (_) async {
       if (_myUuid == null) return;
       final res = await _api.get('/p2p/messages/$_myUuid');
       final msgs = res['messages'] as List?;
