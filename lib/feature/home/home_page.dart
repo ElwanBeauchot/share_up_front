@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../scan/scan_page.dart';
-import '../../services/device_service.dart';
+import '../../services/device_service.dart'; // tu peux le garder si tu l’utilises plus tard
+import '../../theme/app_colors.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -18,15 +19,7 @@ class HomePage extends StatelessWidget {
         width: double.infinity,
         height: double.infinity,
         decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF4F46E5),
-              Color(0xFF9333EA),
-              Color(0xFFB832F2),
-            ],
-          ),
+          gradient: AppColors.brandGradient,
         ),
         child: SafeArea(
           child: Padding(
@@ -39,7 +32,7 @@ class HomePage extends StatelessWidget {
                 SizedBox(
                   height: 250,
                   child: _MainCard(
-                    onScanPressed: () async => _goToScan(context)
+                    onScanPressed: () async => _goToScan(context),
                   ),
                 ),
                 const SizedBox(height: 30),
@@ -193,7 +186,7 @@ class _ScanButtonState extends State<_ScanButton> {
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF4F46E5),
+                color: AppColors.indigo,
               ),
             ),
           ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../theme/app_colors.dart';
 import 'scan_controller.dart';
 import 'scan_state.dart';
 import '../../services/p2p_service.dart';
@@ -83,12 +84,10 @@ class _ScanPageState extends State<ScanPage> {
 
   @override
   Widget build(BuildContext context) {
-    const bg = Color(0xFFF4F6FF);
-
     return Scaffold(
-      backgroundColor: bg,
+      backgroundColor: AppColors.scanBg,
       appBar: AppBar(
-        backgroundColor: bg,
+        backgroundColor: AppColors.scanBg,
         elevation: 0,
         scrolledUnderElevation: 0,
         leadingWidth: 100,
@@ -151,11 +150,12 @@ class _ScanPageState extends State<ScanPage> {
                             ),
                           )
                         : ListView.separated(
-                            itemCount: state.devices.length,
-                            separatorBuilder: (_, __) =>
-                                const SizedBox(height: 14),
-                            itemBuilder: (context, index) {
-                              final d = state.devices[index];
+                      itemCount: state.devices.length,
+                      separatorBuilder: (_, __) =>
+                      const SizedBox(height: 14),
+                      itemBuilder: (context, index) {
+                        final d = state.devices[index];
+
 
                               // ✅ Animation style "spawn from left"
                               return _SlideFadeIn(
@@ -177,7 +177,7 @@ class _ScanPageState extends State<ScanPage> {
                       child: ElevatedButton(
                         onPressed: controller.startScan,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF4F46E5),
+                          backgroundColor: AppColors.indigo,
                           foregroundColor: Colors.white,
                           elevation: 0,
                           shape: RoundedRectangleBorder(
@@ -313,11 +313,8 @@ class _LeftIcon extends StatelessWidget {
       height: 38,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF4F46E5), Color(0xFF9333EA), Color(0xFFB832F2)],
-        ),
+        gradient: AppColors.brandGradient,
+
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.08),
