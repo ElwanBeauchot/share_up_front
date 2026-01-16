@@ -87,24 +87,42 @@ class _ScanPageState extends State<ScanPage> {
   }
 
   Future<void> _showMessageDialog(String message) async {
-    if (message.startsWith('data:image')) {
+    if (message.startsWith('data:')) {
       try {
-        final base64String = message.split(',')[1];
-        final imageBytes = base64Decode(base64String);
+        final parts = message.split(',');
+        final header = parts[0];
+        final base64String = parts[1];
+        final fileBytes = base64Decode(base64String);
+
+        final mimeType = header.split(';')[0].split(':')[1];
+        final extension = _getExtensionFromMimeType(mimeType);
         final directory =
             await getDownloadsDirectory() ??
             await getApplicationDocumentsDirectory();
         final file = File(
-          '${directory.path}/image_${DateTime.now().millisecondsSinceEpoch}.png',
+          '${directory.path}/fichier_${DateTime.now().millisecondsSinceEpoch}$extension',
         );
-        await file.writeAsBytes(imageBytes);
-        _showDialog('Image sauvegardée');
+        await file.writeAsBytes(fileBytes);
+        _showDialog('Fichier sauvegardé');
       } catch (e) {
-        _showDialog('Erreur sauvegarde image');
+        _showDialog('Erreur sauvegarde fichier');
       }
     } else {
       _showDialog('Message: $message');
     }
+  }
+
+  String _getExtensionFromMimeType(String mimeType) {
+    final map = {
+      'application/pdf': '.pdf',
+      'application/zip': '.zip',
+      'text/plain': '.txt',
+      'text/csv': '.csv',
+      'application/json': '.json',
+      'video/mp4': '.mp4',
+      'audio/mpeg': '.mp3',
+    };
+    return map[mimeType] ?? '.bin';
   }
 
   @override
