@@ -1,7 +1,5 @@
 import 'package:flutter_webrtc/flutter_webrtc.dart';
-import 'package:flutter/services.dart';
 import 'dart:async';
-import 'dart:convert';
 import 'api_service.dart';
 import 'device_service.dart';
 
@@ -14,6 +12,8 @@ class P2PService {
   String? _remoteDeviceUuid;
   String? _myUuid;
   Function(String)? onMessageReceived;
+
+  RTCDataChannelState? get dataChannelState => _dataChannel?.state;
 
   void startListening() {
     _deviceService.getDeviceUuid().then((uuid) {
@@ -145,26 +145,9 @@ class P2PService {
     }
   }
 
-  Future<void> sendFile() async {
-    Uint8List imageBytes;
-    try {
-      final byteData = await rootBundle.load(
-        'android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png',
-      );
-      imageBytes = byteData.buffer.asUint8List();
-    } catch (e) {
-      return;
-    }
-
-    final base64Image = base64Encode(imageBytes);
-    final content = 'data:image/png;base64,$base64Image';
-
-    for (int i = 0; i < 30; i++) {
-      if (_dataChannel?.state == RTCDataChannelState.RTCDataChannelOpen) {
-        _dataChannel!.send(RTCDataChannelMessage(content));
-        return;
-      }
-      await Future.delayed(const Duration(milliseconds: 500));
+  Future<void> sendMessage(String message) async {
+    if (_dataChannel?.state == RTCDataChannelState.RTCDataChannelOpen) {
+      _dataChannel!.send(RTCDataChannelMessage(message));
     }
   }
 

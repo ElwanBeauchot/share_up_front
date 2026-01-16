@@ -19,7 +19,7 @@ class ApiService {
       } else {
         return {};
       }
-    } on TimeoutException catch (e) {
+    } on TimeoutException {
       print('[API] Timeout: $endpoint');
       return {};
     } catch (e) {
@@ -38,7 +38,7 @@ class ApiService {
       } else {
         return {};
       }
-    } on TimeoutException catch (e) {
+    } on TimeoutException {
       print('[API] Timeout: $endpoint');
       return {};
     } catch (e) {

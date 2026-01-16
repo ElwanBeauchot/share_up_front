@@ -6,10 +6,12 @@ import 'select_files_state.dart';
 
 class SelectFilesPage extends StatefulWidget {
   final String targetDeviceName;
+  final String targetDeviceUuid;
 
   const SelectFilesPage({
     super.key,
     required this.targetDeviceName,
+    required this.targetDeviceUuid,
   });
 
   @override
@@ -58,6 +60,7 @@ class _SelectFilesPageState extends State<SelectFilesPage> {
 
     controller = SelectFilesController(
       targetDeviceName: widget.targetDeviceName,
+      targetDeviceUuid: widget.targetDeviceUuid,
       initialFiles: mock,
     );
 
@@ -133,8 +136,6 @@ class _SelectFilesPageState extends State<SelectFilesPage> {
                 ),
               ),
               const SizedBox(height: 14),
-
-              // ✅ Bloc récap qui apparaît uniquement si au moins 1 sélection
               AnimatedSwitcher(
                 duration: const Duration(milliseconds: 220),
                 switchInCurve: Curves.easeOut,
@@ -183,8 +184,6 @@ class _SelectFilesPageState extends State<SelectFilesPage> {
               ),
 
               const SizedBox(height: 16),
-
-              // Bouton "Ajouter des fichiers" (style ScanPage)
               SizedBox(
                 width: double.infinity,
                 height: 50,
@@ -211,8 +210,6 @@ class _SelectFilesPageState extends State<SelectFilesPage> {
               ),
 
               const SizedBox(height: 12),
-
-              // Bouton "Envoyer" (style ScanPage)
               SizedBox(
                 width: double.infinity,
                 height: 50,
@@ -458,8 +455,6 @@ class _FileRow extends StatelessWidget {
               child: Icon(iconData, color: iconColor, size: 20),
             ),
             const SizedBox(width: 14),
-
-            // ✅ mêmes styles/écarts que ScanPage (deviceName / os)
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

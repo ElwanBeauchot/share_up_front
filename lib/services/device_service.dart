@@ -22,7 +22,6 @@ class DeviceService {
     return uuid;
   }
 
-  /// Récupère l'UUID du device (méthode publique)
   Future<String> getDeviceUuid() async {
     return _getDeviceUuid();
   }

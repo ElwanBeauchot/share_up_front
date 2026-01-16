@@ -7,67 +7,53 @@ class ScanController extends ValueNotifier<ScanState> {
   ScanController() : super(const ScanState());
 
   final DeviceService _deviceService = DeviceService();
-  Timer? _timer;
+  Timer? _periodicTimer;
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _periodicTimer?.cancel();
     super.dispose();
   }
 
   void startScan() {
     value = value.copyWith(scanning: true, devices: const []);
+    _performScan();
 
-    _timer?.cancel();
-    _timer = Timer(const Duration(seconds: 2), () async {
-      try {
-        final nearbyDevices = await _deviceService.getNearbyDevices();
+    if (_periodicTimer == null) {
+      _periodicTimer = Timer.periodic(
+        const Duration(seconds: 5),
+        (_) => _performScan(),
+      );
+    }
+  }
 
-        // Conversion Map -> ScanDevice
-        final devices = nearbyDevices.map<ScanDevice>((d) {
-          final geo = d["geolocalisation"] ?? {};
-          final coords = geo["coordinates"] ?? [0.0, 0.0];
+  void _performScan() async {
+    try {
+      final nearbyDevices = await _deviceService.getNearbyDevices();
 
-          return ScanDevice(
-            uuid: d["uuid"] ?? "",
-            deviceName: d["device_name"] ?? "",
-            os: d["os"] ?? "",
-            lastSeen: d["last_seen"] ?? "",
-            geolocalisation: GeoLoc(
-              type: geo["type"] ?? "Point",
-              coordinates: [
-                (coords[0] as num).toDouble(),
-                (coords[1] as num).toDouble(),
-              ],
-            ),
-          );
-        }).toList();
+      final devices = nearbyDevices.map<ScanDevice>((d) {
+        final geo = d["geolocalisation"] ?? {};
+        final coords = geo["coordinates"] ?? [0.0, 0.0];
 
-        // ✅ Device de test toujours présent
-        final testDevice = ScanDevice(
-          uuid: 'TEST-DEVICE-UUID',
-          deviceName: 'iPhone de Marie',
-          os: 'iOS',
-          lastSeen: 'just now',
+        return ScanDevice(
+          uuid: d["uuid"] ?? "",
+          deviceName: d["device_name"] ?? "",
+          os: d["os"] ?? "",
+          lastSeen: d["last_seen"] ?? "",
           geolocalisation: GeoLoc(
-            type: 'Point',
-            coordinates: [2.3522, 48.8566], // Paris
+            type: geo["type"] ?? "Point",
+            coordinates: [
+              (coords[0] as num).toDouble(),
+              (coords[1] as num).toDouble(),
+            ],
           ),
         );
+      }).toList();
 
-        // Évite les doublons
-        final alreadyExists = devices.any((d) => d.uuid == testDevice.uuid);
-
-        if (!alreadyExists) {
-          devices.insert(0, testDevice);
-        }
-
-        value = value.copyWith(scanning: false, devices: devices);
-      } catch (e) {
-        debugPrint("Erreur scan: $e");
-
-        value = value.copyWith(scanning: false, devices: []);
-      }
-    });
+      value = value.copyWith(scanning: false, devices: devices);
+    } catch (e) {
+      debugPrint("Erreur scan: $e");
+      value = value.copyWith(scanning: false, devices: []);
+    }
   }
 }

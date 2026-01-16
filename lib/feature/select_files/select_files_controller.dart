@@ -2,17 +2,26 @@
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'select_files_state.dart';
+import '../../services/p2p_service.dart';
+import 'dart:io';
+import 'dart:convert';
+import 'package:flutter/services.dart';
 
 class SelectFilesController extends ChangeNotifier {
   SelectFilesState _state;
+  final String _targetDeviceUuid;
+  final P2PService _p2pService = P2PService();
 
   SelectFilesState get state => _state;
 
   SelectFilesController({
     required String targetDeviceName,
+    required String targetDeviceUuid,
     List<SelectableFile>? initialFiles,
-  }) : _state = SelectFilesState(
+  }) : _targetDeviceUuid = targetDeviceUuid,
+       _state = SelectFilesState(
     targetDeviceName: targetDeviceName,
     files: initialFiles ?? const [],
     selectedIds: <String>{},
@@ -44,20 +53,15 @@ class SelectFilesController extends ChangeNotifier {
 
     if (result == null) return;
 
-    final picked = result.files;
-
-    final newFiles = picked
-        .where((f) => f.path != null) // sur certaines plateformes web path peut être null
-        .map((f) {
-      final kind = _inferKind(f.name);
-      return SelectableFile(
-        id: _randomId(),
-        name: f.name,
-        bytes: f.size,
-        kind: kind,
-        path: f.path,
-      );
-    })
+    final newFiles = result.files
+        .where((f) => f.path != null)
+        .map((f) => SelectableFile(
+          id: _randomId(),
+          name: f.name,
+          bytes: f.size,
+          kind: _inferKind(f.name),
+          path: f.path,
+        ))
         .toList();
 
     final merged = [...newFiles, ..._state.files];
@@ -73,21 +77,53 @@ class SelectFilesController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final selected = _state.files
-          .where((f) => _state.selectedIds.contains(f.id))
-          .toList();
-
-      // TODO: ici tu branches ton envoi réseau (WiFi Direct/BLE/HTTP etc.)
-      // Par exemple:
-      // await _transferService.sendFiles(selected);
-
-      await Future.delayed(const Duration(milliseconds: 900)); // placeholder
-
-      // après succès:
+      await _p2pService.connectToDevice(_targetDeviceUuid);
+      final selected = _state.files.where((f) => _state.selectedIds.contains(f.id)).toList();
+      for (final file in selected) {
+        await _sendFile(file);
+      }
       clearSelection();
+      await _p2pService.disconnect();
+    } catch (e) {
+      debugPrint("Erreur envoi: $e");
     } finally {
       _state = _state.copyWith(isSending: false);
       notifyListeners();
+    }
+  }
+
+  Future<void> _sendFile(SelectableFile file) async {
+    final fileBytes = file.path != null
+        ? await File(file.path!).readAsBytes()
+        : (await rootBundle.load('android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png'))
+            .buffer
+            .asUint8List();
+
+    final dataUri = 'data:${_getMimeType(file.kind)};base64,${base64Encode(fileBytes)}';
+
+    for (int i = 0; i < 30; i++) {
+      if (_p2pService.dataChannelState == RTCDataChannelState.RTCDataChannelOpen) {
+        await _p2pService.sendMessage(dataUri);
+        return;
+      }
+      await Future.delayed(const Duration(milliseconds: 500));
+    }
+  }
+
+  String _getMimeType(FileKind kind) {
+    switch (kind) {
+      case FileKind.image:
+        return 'image/png';
+      case FileKind.pdf:
+        return 'application/pdf';
+      case FileKind.audio:
+        return 'audio/mpeg';
+      case FileKind.video:
+        return 'video/mp4';
+      case FileKind.ppt:
+        return 'application/vnd.ms-powerpoint';
+      case FileKind.other:
+        return 'application/octet-stream';
     }
   }
 

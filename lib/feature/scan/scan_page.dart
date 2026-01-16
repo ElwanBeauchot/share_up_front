@@ -1,11 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
-import 'dart:convert';
-import 'dart:io';
-import 'package:path_provider/path_provider.dart';
 import 'scan_controller.dart';
 import 'scan_state.dart';
-import '../../services/p2p_service.dart';
 import '../select_files/select_files_page.dart';
 
 class ScanPage extends StatefulWidget {
@@ -17,117 +13,33 @@ class ScanPage extends StatefulWidget {
 
 class _ScanPageState extends State<ScanPage> {
   late final ScanController controller;
-  final P2PService _p2pService = P2PService();
-
-  // ✅ Sert à forcer la reconstruction de la liste pour rejouer l'animation
   int _animationSeed = 0;
 
   @override
   void initState() {
     super.initState();
-
     controller = ScanController();
     controller.startScan();
-
-    _p2pService.onMessageReceived = (msg) {
-      if (mounted) _showMessageDialog(msg);
-    };
-
-    _startListeningForConnections();
   }
 
   @override
   void dispose() {
-    _p2pService.disconnect();
     controller.dispose();
     super.dispose();
   }
 
-  void _startListeningForConnections() {
-    Future.delayed(const Duration(seconds: 2), () {
-      if (!mounted) return;
-      _p2pService.startListening();
-    });
-  }
-
   Future<void> _handleDeviceTap(ScanDevice device) async {
-    await _p2pService.connectToDevice(device.uuid);
-
     if (!mounted) return;
-
-    // ✅ On attend le retour de SelectFilesPage
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => SelectFilesPage(targetDeviceName: device.deviceName),
+        builder: (_) => SelectFilesPage(
+          targetDeviceName: device.deviceName,
+          targetDeviceUuid: device.uuid,
+        ),
       ),
     );
-
-    // ✅ Au retour : on force la liste à se reconstruire => animation rejoue
     if (!mounted) return;
-    setState(() {
-      _animationSeed++;
-    });
-
-    // (Optionnel) si tu veux aussi relancer un scan en revenant :
-    // controller.startScan();
-  }
-
-  void _showDialog(String text) {
-    if (!mounted) return;
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        content: Text(text),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _p2pService.disconnect();
-            },
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    ).then((_) => _p2pService.disconnect());
-  }
-
-  Future<void> _showMessageDialog(String message) async {
-    if (message.startsWith('data:')) {
-      try {
-        final parts = message.split(',');
-        final header = parts[0];
-        final base64String = parts[1];
-        final fileBytes = base64Decode(base64String);
-
-        final mimeType = header.split(';')[0].split(':')[1];
-        final extension = _getExtensionFromMimeType(mimeType);
-        final directory =
-            await getDownloadsDirectory() ??
-            await getApplicationDocumentsDirectory();
-        final file = File(
-          '${directory.path}/fichier_${DateTime.now().millisecondsSinceEpoch}$extension',
-        );
-        await file.writeAsBytes(fileBytes);
-        _showDialog('Fichier sauvegardé');
-      } catch (e) {
-        _showDialog('Erreur sauvegarde fichier');
-      }
-    } else {
-      _showDialog('Message: $message');
-    }
-  }
-
-  String _getExtensionFromMimeType(String mimeType) {
-    final map = {
-      'application/pdf': '.pdf',
-      'application/zip': '.zip',
-      'text/plain': '.txt',
-      'text/csv': '.csv',
-      'application/json': '.json',
-      'video/mp4': '.mp4',
-      'audio/mpeg': '.mp3',
-    };
-    return map[mimeType] ?? '.bin';
+    setState(() => _animationSeed++);
   }
 
   @override
@@ -197,16 +109,13 @@ class _ScanPageState extends State<ScanPage> {
                             ),
                           )
                         : ListView.separated(
-                            // ✅ La clé change au retour => Flutter recrée la liste => animations rejouent
                             key: ValueKey('devices_list_$_animationSeed'),
                             itemCount: state.devices.length,
                             separatorBuilder: (_, __) =>
                                 const SizedBox(height: 14),
                             itemBuilder: (context, index) {
                               final d = state.devices[index];
-
                               return _SlideFadeIn(
-                                // ✅ key aussi sur l'item (encore plus robuste)
                                 key: ValueKey(
                                   'device_${d.deviceName}_$_animationSeed',
                                 ),
