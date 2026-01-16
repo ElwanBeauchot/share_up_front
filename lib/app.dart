@@ -20,7 +20,7 @@ class _ShareUpAppState extends State<ShareUpApp> {
   void initState() {
     super.initState();
     _p2pService.onMessageReceived = _handleReceivedMessage;
-    Future.delayed(const Duration(seconds: 2), () {
+    Future.delayed(const Duration(seconds: 4), () {
       _p2pService.startListening();
     });
   }
@@ -35,16 +35,16 @@ class _ShareUpAppState extends State<ShareUpApp> {
       final parts = message.split(',');
       final mimeType = parts[0].split(';')[0].split(':')[1];
       final fileBytes = base64Decode(parts[1]);
-      final directory =
-          await getDownloadsDirectory() ??
-          await getApplicationDocumentsDirectory();
-      final file = File(
-        '${directory.path}/fichier_${DateTime.now().millisecondsSinceEpoch}${_getExtensionFromMimeType(mimeType)}',
-      );
+
+      final directory = await getApplicationDocumentsDirectory();
+      final fileName =
+          'fichier_${DateTime.now().millisecondsSinceEpoch}${_getExtensionFromMimeType(mimeType)}';
+      final file = File('${directory.path}/$fileName');
+
       await file.writeAsBytes(fileBytes);
-      _showDialog('Fichier sauvegardé');
+      _showDialog('Fichier sauvegardé: $fileName');
     } catch (e) {
-      _showDialog('Erreur sauvegarde fichier');
+      _showDialog('Erreur sauvegarde fichier: $e');
     } finally {
       await _p2pService.disconnect();
     }
@@ -70,6 +70,11 @@ class _ShareUpAppState extends State<ShareUpApp> {
 
   String _getExtensionFromMimeType(String mimeType) {
     final map = {
+      'image/png': '.png',
+      'image/jpeg': '.jpg',
+      'image/jpg': '.jpg',
+      'image/webp': '.webp',
+      'image/heic': '.heic',
       'application/pdf': '.pdf',
       'application/zip': '.zip',
       'text/plain': '.txt',
