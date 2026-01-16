@@ -43,14 +43,31 @@ class ScanController extends ValueNotifier<ScanState> {
           );
         }).toList();
 
-        value = value.copyWith(
-          scanning: false,
-          devices: devices,
+        // ✅ Device de test toujours présent
+        final testDevice = ScanDevice(
+          uuid: 'TEST-DEVICE-UUID',
+          deviceName: 'iPhone de Marie',
+          os: 'iOS',
+          lastSeen: 'just now',
+          geolocalisation: GeoLoc(
+            type: 'Point',
+            coordinates: [2.3522, 48.8566], // Paris
+          ),
         );
+
+        // Évite les doublons
+        final alreadyExists = devices.any((d) => d.uuid == testDevice.uuid);
+
+        if (!alreadyExists) {
+          devices.insert(0, testDevice);
+        }
+
+        value = value.copyWith(scanning: false, devices: devices);
       } catch (e) {
-        value = value.copyWith(scanning: false);
+        debugPrint("Erreur scan: $e");
+
+        value = value.copyWith(scanning: false, devices: []);
       }
     });
-
   }
 }
