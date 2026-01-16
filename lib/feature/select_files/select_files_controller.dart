@@ -12,7 +12,7 @@ import 'package:flutter/services.dart';
 class SelectFilesController extends ChangeNotifier {
   SelectFilesState _state;
   final String _targetDeviceUuid;
-  final P2PService _p2pService = P2PService();
+  final P2PService _p2pService = P2PService.instance;
 
   SelectFilesState get state => _state;
 
@@ -22,11 +22,11 @@ class SelectFilesController extends ChangeNotifier {
     List<SelectableFile>? initialFiles,
   }) : _targetDeviceUuid = targetDeviceUuid,
        _state = SelectFilesState(
-    targetDeviceName: targetDeviceName,
-    files: initialFiles ?? const [],
-    selectedIds: <String>{},
-    isSending: false,
-  );
+         targetDeviceName: targetDeviceName,
+         files: initialFiles ?? const [],
+         selectedIds: <String>{},
+         isSending: false,
+       );
 
   void toggleSelection(String id) {
     final next = Set<String>.from(_state.selectedIds);
@@ -55,13 +55,15 @@ class SelectFilesController extends ChangeNotifier {
 
     final newFiles = result.files
         .where((f) => f.path != null)
-        .map((f) => SelectableFile(
-          id: _randomId(),
-          name: f.name,
-          bytes: f.size,
-          kind: _inferKind(f.name),
-          path: f.path,
-        ))
+        .map(
+          (f) => SelectableFile(
+            id: _randomId(),
+            name: f.name,
+            bytes: f.size,
+            kind: _inferKind(f.name),
+            path: f.path,
+          ),
+        )
         .toList();
 
     final merged = [...newFiles, ..._state.files];
@@ -78,7 +80,9 @@ class SelectFilesController extends ChangeNotifier {
 
     try {
       await _p2pService.connectToDevice(_targetDeviceUuid);
-      final selected = _state.files.where((f) => _state.selectedIds.contains(f.id)).toList();
+      final selected = _state.files
+          .where((f) => _state.selectedIds.contains(f.id))
+          .toList();
       for (final file in selected) {
         await _sendFile(file);
       }
@@ -95,14 +99,16 @@ class SelectFilesController extends ChangeNotifier {
   Future<void> _sendFile(SelectableFile file) async {
     final fileBytes = file.path != null
         ? await File(file.path!).readAsBytes()
-        : (await rootBundle.load('android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png'))
-            .buffer
-            .asUint8List();
+        : (await rootBundle.load(
+            'android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png',
+          )).buffer.asUint8List();
 
-    final dataUri = 'data:${_getMimeType(file.kind)};base64,${base64Encode(fileBytes)}';
+    final dataUri =
+        'data:${_getMimeType(file.kind)};base64,${base64Encode(fileBytes)}';
 
     for (int i = 0; i < 30; i++) {
-      if (_p2pService.dataChannelState == RTCDataChannelState.RTCDataChannelOpen) {
+      if (_p2pService.dataChannelState ==
+          RTCDataChannelState.RTCDataChannelOpen) {
         await _p2pService.sendMessage(dataUri);
         return;
       }
@@ -133,7 +139,8 @@ class SelectFilesController extends ChangeNotifier {
         lower.endsWith('.jpeg') ||
         lower.endsWith('.png') ||
         lower.endsWith('.webp') ||
-        lower.endsWith('.heic')) return FileKind.image;
+        lower.endsWith('.heic'))
+      return FileKind.image;
 
     if (lower.endsWith('.pdf')) return FileKind.pdf;
 
@@ -141,12 +148,14 @@ class SelectFilesController extends ChangeNotifier {
         lower.endsWith('.wav') ||
         lower.endsWith('.m4a') ||
         lower.endsWith('.aac') ||
-        lower.endsWith('.flac')) return FileKind.audio;
+        lower.endsWith('.flac'))
+      return FileKind.audio;
 
     if (lower.endsWith('.mp4') ||
         lower.endsWith('.mov') ||
         lower.endsWith('.mkv') ||
-        lower.endsWith('.avi')) return FileKind.video;
+        lower.endsWith('.avi'))
+      return FileKind.video;
 
     if (lower.endsWith('.ppt') || lower.endsWith('.pptx')) return FileKind.ppt;
 

@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'scan_state.dart';
 import 'package:share_up_front/services/device_service.dart';
@@ -7,24 +6,18 @@ class ScanController extends ValueNotifier<ScanState> {
   ScanController() : super(const ScanState());
 
   final DeviceService _deviceService = DeviceService();
-  Timer? _periodicTimer;
+  bool _isScanning = false;
 
   @override
   void dispose() {
-    _periodicTimer?.cancel();
     super.dispose();
   }
 
   void startScan() {
+    if (_isScanning) return;
+    _isScanning = true;
     value = value.copyWith(scanning: true, devices: const []);
     _performScan();
-
-    if (_periodicTimer == null) {
-      _periodicTimer = Timer.periodic(
-        const Duration(seconds: 5),
-        (_) => _performScan(),
-      );
-    }
   }
 
   void _performScan() async {
@@ -54,6 +47,8 @@ class ScanController extends ValueNotifier<ScanState> {
     } catch (e) {
       debugPrint("Erreur scan: $e");
       value = value.copyWith(scanning: false, devices: []);
+    } finally {
+      _isScanning = false;
     }
   }
 }

@@ -13,7 +13,7 @@ class ShareUpApp extends StatefulWidget {
 }
 
 class _ShareUpAppState extends State<ShareUpApp> {
-  final P2PService _p2pService = P2PService();
+  final P2PService _p2pService = P2PService.instance;
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
 
   @override
@@ -45,6 +45,8 @@ class _ShareUpAppState extends State<ShareUpApp> {
       _showDialog('Fichier sauvegardé');
     } catch (e) {
       _showDialog('Erreur sauvegarde fichier');
+    } finally {
+      await _p2pService.disconnect();
     }
   }
 

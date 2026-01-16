@@ -4,6 +4,9 @@ import 'api_service.dart';
 import 'device_service.dart';
 
 class P2PService {
+  static final P2PService instance = P2PService._();
+  P2PService._();
+
   RTCPeerConnection? _peerConnection;
   RTCDataChannel? _dataChannel;
   final ApiService _api = ApiService();
