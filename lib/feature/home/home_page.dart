@@ -3,15 +3,16 @@ import '../scan/scan_page.dart';
 import '../../services/device_service.dart'; // tu peux le garder si tu l’utilises plus tard
 import '../../theme/app_colors.dart';
 
+// Page principale de l'accueil.
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
-
+  // Fonction pour naviguer vers la page de scan.
   void _goToScan(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const ScanPage()),
     );
   }
-
+////////////////////////////////////////////////////////////////////////////// Call of all StatelessWidget  ////////////////////////////////////////////////////////////////////////////////////////////////
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -49,6 +50,7 @@ class HomePage extends StatelessWidget {
   }
 }
 
+// Bloc du haut: logo + nom de l'application.
 class _TopBranding extends StatelessWidget {
   const _TopBranding();
 
@@ -84,6 +86,7 @@ class _TopBranding extends StatelessWidget {
   }
 }
 
+// Carte principale avec le texte d'accroche et le bouton de scan.
 class _MainCard extends StatelessWidget {
   const _MainCard({required this.onScanPressed});
 
@@ -140,6 +143,7 @@ class _MainCard extends StatelessWidget {
   }
 }
 
+// Bouton de scan avec animation au survol et au clic.
 class _ScanButton extends StatefulWidget {
   const _ScanButton({required this.onPressed});
 
@@ -196,6 +200,7 @@ class _ScanButtonState extends State<_ScanButton> {
   }
 }
 
+// Carte du bas pour acceder a l'historique.
 class _BottomBranding extends StatefulWidget {
   const _BottomBranding();
 
@@ -260,6 +265,7 @@ class _BottomBrandingState extends State<_BottomBranding> {
   }
 }
 
+// Ligne qui contient les statistiques rapides.
 class _RowStats extends StatelessWidget {
   const _RowStats();
 
@@ -289,6 +295,7 @@ class _RowStats extends StatelessWidget {
   }
 }
 
+// Carte individuelle d'une statistique.
 class _StatCard extends StatelessWidget {
   const _StatCard({
     required this.title,
