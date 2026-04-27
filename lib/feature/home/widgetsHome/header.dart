@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:share_up_front/theme/app_theme.dart';
 
 class Header extends StatelessWidget {
   const Header({super.key});

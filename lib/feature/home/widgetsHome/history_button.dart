@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:share_up_front/theme/app_theme.dart';
 
 class HistoryButton extends StatelessWidget {
-  const HistoryButton({super.key});
+  final VoidCallback onPressed;
+
+  const HistoryButton({
+    super.key,
+    required this.onPressed,
+  });
 
   @override
   Widget build(BuildContext context) {
     return ElevatedButton(
-      onPressed: () {},
+      onPressed: onPressed,
       style: ElevatedButton.styleFrom(
         backgroundColor: Colors.white.withOpacity(0.12),
         foregroundColor: Colors.white,
@@ -21,7 +27,7 @@ class HistoryButton extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.history),
-          SizedBox(width: 10),
+          SizedBox(width: 15),
           Text("Historique des transferts"),
         ],
       ),
