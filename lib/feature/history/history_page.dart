@@ -16,14 +16,14 @@ class HistoryPage extends StatefulWidget {
 
 class _HistoryPageState extends State<HistoryPage> {
   late final HistoryController _controller;
-
+// Creation de la page  
   @override
   void initState() {
     super.initState();
     _controller = HistoryController();
     _controller.loadHistoryData();
   }
-
+// Destruction de la page
   @override
   void dispose() {
     _controller.dispose();
@@ -35,7 +35,7 @@ class _HistoryPageState extends State<HistoryPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF3F4FA),
       body: SafeArea(
-        child: ValueListenableBuilder<HistoryState>(
+        child: ValueListenableBuilder<HistoryState>( // ValueListenableBuilder pour écouter les changements d'état du controller
           valueListenable: _controller,
           builder: (context, state, _) {
             final filteredTransfers = state.filteredTransfers;
@@ -72,12 +72,13 @@ class _HistoryPageState extends State<HistoryPage> {
                               child: CircularProgressIndicator(strokeWidth: 3),
                             ),
                           )
+                          // Affichage de la liste des transferts filtrés avec des animations d'entrée
                         : ListView.separated(
                             key: ValueKey(
-                              'history_list_${state.selectedFilter.name}_${state.animationSeed}',
+                              'history_list_${state.selectedFilter.name}_${state.animationSeed}', 
                             ),
                             itemCount: filteredTransfers.length,
-                            separatorBuilder: (_, __) =>
+                            separatorBuilder: (_, __) => 
                                 const SizedBox(height: 18),
                             itemBuilder: (context, index) {
                               final transfer = filteredTransfers[index];

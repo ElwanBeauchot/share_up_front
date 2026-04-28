@@ -32,7 +32,7 @@ class TransferHistoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isReceived = item.direction == TransferDirection.received;
+    final isReceived = item.direction == TransferDirection.received; //determine si le transfert est reçu ou envoyé
     final accentColor = isReceived
         ? const Color(0xFF16A34A)
         : AppColors.indigo;
