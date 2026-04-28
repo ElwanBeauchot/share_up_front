@@ -19,6 +19,7 @@ class SelectFilesPage extends StatefulWidget {
 
 class _SelectFilesPageState extends State<SelectFilesPage> {
   late final SelectFilesController _controller;
+  final Set<String> _animatedFileIds = {};
 
   // Creation de la page
   @override
@@ -95,6 +96,7 @@ class _SelectFilesPageState extends State<SelectFilesPage> {
                           )
                         : ListView.separated(
                             key: ValueKey('files_list_${state.animationSeed}'),
+                            cacheExtent: 1200,
                             itemCount: state.files.length,
                             separatorBuilder: (context, index) {
                               return const SizedBox(height: 14);
@@ -103,10 +105,9 @@ class _SelectFilesPageState extends State<SelectFilesPage> {
                               final file = state.files[index];
 
                               return SlideFadeIn(
-                                key: ValueKey(
-                                  'file_${file.name}_${state.animationSeed}',
-                                ),
+                                key: ValueKey('file_${_fileAnimationId(file)}'),
                                 delay: Duration(milliseconds: 70 * index),
+                                animate: _shouldAnimateFile(file),
                                 child: FileCard(
                                   file: file,
                                   onTap: () =>
@@ -150,5 +151,17 @@ class _SelectFilesPageState extends State<SelectFilesPage> {
         ),
       ),
     );
+  }
+
+  bool _shouldAnimateFile(FileItemModel file) {
+    final fileId = _fileAnimationId(file);
+    if (_animatedFileIds.contains(fileId)) return false;
+
+    _animatedFileIds.add(fileId);
+    return true;
+  }
+
+  String _fileAnimationId(FileItemModel file) {
+    return file.path ?? file.name;
   }
 }
