@@ -7,7 +7,7 @@ class ApiService {
   static const Duration _timeout = Duration(seconds: 20);
 
   //String apiUrl = dotenv.env['API_URL']!;
-  String apiUrl = "http://10.105.58.165:8080";
+  String apiUrl = "http://192.168.1.27:8080";
   String apiKey = dotenv.env['API_KEY']!;
 
   Future<Map<String, dynamic>> post(
@@ -25,7 +25,11 @@ class ApiService {
           .timeout(_timeout);
 
       if (response.statusCode == 200) {
-        return {'code': 200, 'message': 'Success', 'data': jsonDecode(response.body) as Map<String, dynamic>};
+        return {
+          'code': 200,
+          'message': 'Success',
+          'data': jsonDecode(response.body) as Map<String, dynamic>,
+        };
       } else {
         print('Erreur API POST: ${response.statusCode} - ${response.body}');
         return {'code': response.statusCode, 'message': response.body};
@@ -39,6 +43,44 @@ class ApiService {
     }
   }
 
+  /// Ouvre une connexion SSE (Server-Sent Events) sur [endpoint] et émet
+  /// chaque event JSON reçu. La stream se termine si le serveur ferme,
+  /// si une erreur survient, ou si l'écouteur cancel sa subscription.
+  Stream<Map<String, dynamic>> streamEvents(String endpoint) async* {
+    final client = http.Client();
+    try {
+      final request = http.Request('GET', Uri.parse('$apiUrl$endpoint'));
+      request.headers['Accept'] = 'text/event-stream';
+      request.headers['Cache-Control'] = 'no-cache';
+      request.headers['x-api-key'] = apiKey;
+
+      final response = await client.send(request);
+      if (response.statusCode != 200) {
+        throw Exception('SSE refusé: HTTP ${response.statusCode}');
+      }
+
+      final lines = response.stream
+          .transform(utf8.decoder)
+          .transform(const LineSplitter());
+
+      final dataBuffer = StringBuffer();
+      await for (final line in lines) {
+        if (line.isEmpty) {
+          // Ligne vide = fin d'event SSE.
+          final raw = dataBuffer.toString();
+          dataBuffer.clear();
+          if (raw.isEmpty) continue;
+          yield jsonDecode(raw) as Map<String, dynamic>;
+        } else if (line.startsWith('data:')) {
+          dataBuffer.write(line.substring(5).trimLeft());
+        }
+        // On ignore les autres lignes (event:, id:, retry:, commentaires).
+      }
+    } finally {
+      client.close();
+    }
+  }
+
   Future<Map<String, dynamic>> get(String endpoint) async {
     final url = Uri.parse('$apiUrl$endpoint');
     try {
@@ -47,7 +89,11 @@ class ApiService {
           .timeout(_timeout);
 
       if (response.statusCode == 200) {
-        return {'code': 200, 'message': 'Success', 'data': jsonDecode(response.body) as Map<String, dynamic>};
+        return {
+          'code': 200,
+          'message': 'Success',
+          'data': jsonDecode(response.body) as Map<String, dynamic>,
+        };
       } else {
         print('Erreur API POST: ${response.statusCode} - ${response.body}');
         return {'code': response.statusCode, 'message': response.body};
