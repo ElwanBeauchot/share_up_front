@@ -1,20 +1,17 @@
-enum FileType {
-  image,
-  document,
-  audio,
-  video,
-}
+enum FileType { image, document, audio, video }
 
 class FileItemModel {
   final String name;
   final String size;
   final FileType type;
+  final String? path;
   final bool isSelected;
 
   const FileItemModel({
     required this.name,
     required this.size,
     required this.type,
+    this.path,
     this.isSelected = false,
   });
 
@@ -22,12 +19,14 @@ class FileItemModel {
     String? name,
     String? size,
     FileType? type,
+    String? path,
     bool? isSelected,
   }) {
     return FileItemModel(
       name: name ?? this.name,
       size: size ?? this.size,
       type: type ?? this.type,
+      path: path ?? this.path,
       isSelected: isSelected ?? this.isSelected,
     );
   }

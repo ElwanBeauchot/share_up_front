@@ -24,8 +24,9 @@ class SelectFilesPage extends StatefulWidget {
 
 class _SelectFilesPageState extends State<SelectFilesPage> {
   late final SelectFilesController _controller;
+  final Set<String> _animatedFileIds = {};
 
-// Creation de la page  
+  // Creation de la page
   @override
   void initState() {
     super.initState();
@@ -36,7 +37,7 @@ class _SelectFilesPageState extends State<SelectFilesPage> {
     _controller.loadFiles();
   }
 
-// Destruction de la page
+  // Destruction de la page
   @override
   void dispose() {
     _controller.dispose();
@@ -56,9 +57,7 @@ class _SelectFilesPageState extends State<SelectFilesPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SelectFilesHeader(
-                    deviceName: state.deviceName,
-                  ),
+                  SelectFilesHeader(deviceName: state.deviceName),
 
                   const SizedBox(height: 16),
 
@@ -104,9 +103,8 @@ class _SelectFilesPageState extends State<SelectFilesPage> {
                             ),
                           )
                         : ListView.separated(
-                            key: ValueKey(
-                              'files_list_${state.animationSeed}',
-                            ),
+                            key: ValueKey('files_list_${state.animationSeed}'),
+                            cacheExtent: 1200,
                             itemCount: state.files.length,
                             separatorBuilder: (context, index) {
                               return const SizedBox(height: 14);
@@ -115,13 +113,13 @@ class _SelectFilesPageState extends State<SelectFilesPage> {
                               final file = state.files[index];
 
                               return SlideFadeIn(
-                                key: ValueKey(
-                                  'file_${file.name}_${state.animationSeed}',
-                                ),
+                                key: ValueKey('file_${_fileAnimationId(file)}'),
                                 delay: Duration(milliseconds: 70 * index),
+                                animate: _shouldAnimateFile(file),
                                 child: FileCard(
                                   file: file,
-                                  onTap: () => _controller.toggleFileSelection(index),
+                                  onTap: () =>
+                                      _controller.toggleFileSelection(index),
                                 ),
                               );
                             },
@@ -143,7 +141,9 @@ class _SelectFilesPageState extends State<SelectFilesPage> {
                   const SizedBox(height: 16),
 
                   AddFilesButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      _controller.addFiles();
+                    },
                   ),
 
                   const SizedBox(height: 12),
@@ -161,5 +161,17 @@ class _SelectFilesPageState extends State<SelectFilesPage> {
         ),
       ),
     );
+  }
+
+  bool _shouldAnimateFile(FileItemModel file) {
+    final fileId = _fileAnimationId(file);
+    if (_animatedFileIds.contains(fileId)) return false;
+
+    _animatedFileIds.add(fileId);
+    return true;
+  }
+
+  String _fileAnimationId(FileItemModel file) {
+    return file.path ?? file.name;
   }
 }
