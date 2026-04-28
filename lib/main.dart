@@ -8,7 +8,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await SystemChrome.setPreferredOrientations([ // lock screen orientation to portrait
+  await SystemChrome.setPreferredOrientations([
+    // lock screen orientation to portrait
     DeviceOrientation.portraitUp,
   ]);
   await dotenv.load(fileName: ".env");
@@ -22,18 +23,20 @@ Future<void> main() async {
     final deviceInfo = await deviceService.getDeviceInfo();
     final position = await deviceService.getDevicePosition();
 
-    final result = await deviceService.sendDeviceData(position, uuid, deviceInfo);
+    final result = await deviceService.sendDeviceData(
+      position,
+      uuid,
+      deviceInfo,
+    );
     print("Device enregistré avant affichage de l'app: $result");
   } catch (e) {
     print("Erreur enregistrement device: $e");
   }
 
-  P2PService().onMessageReceived = (text) {
+  P2PService().messages.listen((text) {
     print('[P2P] message reçu: $text');
-  };
-  P2PService().startListening();
+  });
+  P2PService().startListening(); // ouvre la connexion SSE /p2p/events/$myUuid
 
   runApp(const ShareUpApp());
-
-
 }

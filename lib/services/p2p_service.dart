@@ -1,109 +1,87 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'api_service.dart';
 import 'device_service.dart';
+import 'signaling_client.dart';
+
+enum P2PStatus { idle, connecting, connected, failed }
 
 class P2PService {
   static final P2PService instance = P2PService.internal();
   factory P2PService() => instance;
   P2PService.internal();
 
-  static const Map<String, dynamic> iceConfig = {
-    'iceServers': [
-      {'urls': 'stun:stun.l.google.com:19302'},
-      {
-        'urls': 'turn:openrelay.metered.ca:80',
-        'username': 'openrelayproject',
-        'credential': 'openrelayproject',
-      },
-      {
-        'urls': 'turn:openrelay.metered.ca:443',
-        'username': 'openrelayproject',
-        'credential': 'openrelayproject',
-      },
-    ],
-  };
-
   final ApiService api = ApiService();
   late final DeviceService deviceService = DeviceService(api);
 
+  SignalingClient? signaling;
+  StreamSubscription<Map<String, dynamic>>? signalSub;
+
   RTCPeerConnection? peerConnection;
   RTCDataChannel? dataChannel;
-  StreamSubscription<Map<String, dynamic>>? signalSub;
+
   String? myUuid;
   String? remoteDeviceUuid;
-
-  // Tampon ICE: les candidats reçus avant setRemoteDescription seraient perdus.
-  final List<RTCIceCandidate> pendingIce = [];
-  bool remoteDescriptionSet = false;
-
-  // Évite que deux offers concurrentes créent deux PeerConnections.
-  bool handlingOffer = false;
-
-  // true si on est l'initiateur de la connexion (caller), false côté receveur.
   bool isCaller = false;
+  bool handlingOffer = false;
+  bool remoteDescriptionSet = false;
+  final List<RTCIceCandidate> pendingIce = [];
 
-  Function(String)? onMessageReceived;
+  // Flux de messages reçus côté DataChannel.
+  final StreamController<String> messagesController =
+      StreamController<String>.broadcast();
+  Stream<String> get messages => messagesController.stream;
+
+  // État observable de la connexion P2P.
+  final ValueNotifier<P2PStatus> status = ValueNotifier(P2PStatus.idle);
 
   // -------- API publique --------
 
   void startListening() {
     deviceService.getDeviceUuid().then((uuid) {
       myUuid = uuid;
-      startSignaling();
+      ensureSignaling();
     });
   }
 
   Future<void> connectToDevice(String deviceUuid) async {
     log('connectToDevice → $deviceUuid');
     await disconnect();
+    status.value = P2PStatus.connecting;
+    try {
+      remoteDeviceUuid = deviceUuid;
+      myUuid ??= await deviceService.getDeviceUuid();
+      isCaller = true;
+      ensureSignaling();
 
-    remoteDeviceUuid = deviceUuid;
-    myUuid ??= await deviceService.getDeviceUuid();
-    isCaller = true;
-
-    peerConnection = await createPeer(listenForRemoteChannel: false);
-    bindDataChannel(
-      await peerConnection!.createDataChannel('messages', RTCDataChannelInit()),
-    );
-
-    final offer = await peerConnection!.createOffer();
-    await peerConnection!.setLocalDescription(offer);
-
-    await postOrThrow('/p2p/offer', {
-      'from_uuid': myUuid,
-      'to_uuid': deviceUuid,
-      'sdp': offer.sdp,
-    });
-    log('offer envoyée au backend');
-
-    startSignaling();
-  }
-
-  Future<Map<String, dynamic>> postOrThrow(
-    String endpoint,
-    Map<String, dynamic> body,
-  ) async {
-    final res = await api.post(endpoint, body);
-    if (res['code'] != 200) {
-      throw P2PException(
-        'POST $endpoint a échoué (code=${res['code']}, msg=${res['message']})',
+      peerConnection = await createPeer(listenForRemoteChannel: false);
+      bindDataChannel(
+        await peerConnection!.createDataChannel('messages', RTCDataChannelInit()),
       );
+
+      final offer = await peerConnection!.createOffer();
+      await peerConnection!.setLocalDescription(offer);
+      await signaling!.send('offer', deviceUuid, {'sdp': offer.sdp});
+      log('offer envoyée');
+    } catch (e) {
+      status.value = P2PStatus.failed;
+      rethrow;
     }
-    return res;
   }
 
   Future<void> sendMessage() async {
     if (dataChannel?.state == RTCDataChannelState.RTCDataChannelOpen) {
       dataChannel!.send(RTCDataChannelMessage('Hello P2P'));
-      log('sendMessage: "Hello P2P" envoyé');
+      log('"Hello P2P" envoyé');
     } else {
-      log('sendMessage: canal non ouvert (state=${dataChannel?.state})');
+      log('canal non ouvert (state=${dataChannel?.state})');
     }
   }
 
   Future<void> disconnect() async {
-    stopSignaling();
+    signaling?.stop();
     await dataChannel?.close();
     await peerConnection?.close();
     dataChannel = null;
@@ -112,87 +90,24 @@ class P2PService {
     pendingIce.clear();
     remoteDescriptionSet = false;
     isCaller = false;
+    status.value = P2PStatus.idle;
   }
 
-  // -------- WebRTC --------
+  // -------- Signalisation --------
 
-  Future<RTCPeerConnection> createPeer({required bool listenForRemoteChannel}) async {
-    final pc = await createPeerConnection(iceConfig);
-    pc.onIceCandidate = sendIceCandidate;
-    pc.onConnectionState = (s) => log('connection state: $s');
-    // Seul le receveur écoute onDataChannel: le caller crée son channel lui-même.
-    if (listenForRemoteChannel) {
-      pc.onDataChannel = bindDataChannel;
-    }
-    return pc;
-  }
-
-  void bindDataChannel(RTCDataChannel ch) {
-    dataChannel = ch;
-    ch.onDataChannelState = (s) {
-      log('data channel state: $s');
-      if (s == RTCDataChannelState.RTCDataChannelOpen) {
-        // La signalisation n'est plus nécessaire une fois le canal ouvert.
-        stopSignaling();
-        // Côté initiateur: on envoie automatiquement un "Hello P2P".
-        if (isCaller) sendMessage();
-      }
-    };
-    ch.onMessage = (m) {
-      log('message reçu: ${m.text}');
-      onMessageReceived?.call(m.text);
-      // Une fois le message reçu, le tunnel a fait son office: on ferme.
-      disconnect();
-    };
-  }
-
-  // -------- Signalisation (SSE) --------
-
-  void startSignaling() {
-    if (myUuid == null || signalSub != null) return;
-    log('SSE: ouverture du flux /p2p/events/$myUuid');
-    signalSub = api.streamEvents('/p2p/events/$myUuid').listen(
-      (msg) async {
+  void ensureSignaling() {
+    if (myUuid == null) return;
+    if (signaling == null) {
+      signaling = SignalingClient(api: api, myUuid: myUuid!);
+      signalSub = signaling!.signals.listen((msg) async {
         try {
           await handleSignal(msg);
         } catch (e) {
-          log('erreur sur signal ${msg['type']}: $e');
+          log('erreur signal ${msg['type']}: $e');
         }
-      },
-      onError: (e) {
-        log('SSE erreur: $e');
-        signalSub = null;
-      },
-      onDone: () {
-        log('SSE fermé par le serveur');
-        signalSub = null;
-      },
-    );
-  }
-
-  void stopSignaling() {
-    if (signalSub != null) {
-      log('arrêt de la signalisation SSE');
-      signalSub!.cancel();
-      signalSub = null;
-    }
-  }
-
-  Future<void> sendIceCandidate(RTCIceCandidate candidate) async {
-    if (myUuid == null || remoteDeviceUuid == null) return;
-    if (candidate.candidate == null) return;
-    try {
-      await postOrThrow('/p2p/ice', {
-        'from_uuid': myUuid,
-        'to_uuid': remoteDeviceUuid,
-        'candidate': candidate.candidate,
-        'sdpMid': candidate.sdpMid,
-        'sdpMLineIndex': candidate.sdpMLineIndex,
       });
-    } catch (e) {
-      // Un ICE perdu n'est pas fatal: WebRTC en envoie plusieurs.
-      log('sendIceCandidate: $e');
     }
+    signaling!.start();
   }
 
   Future<void> handleSignal(Map<String, dynamic> msg) async {
@@ -213,29 +128,28 @@ class P2PService {
 
   Future<void> onOffer(Map<String, dynamic> msg) async {
     if (handlingOffer) {
-      log('offer ignorée: une autre est déjà en cours de traitement');
+      log('offer ignorée (déjà en cours)');
       return;
     }
     handlingOffer = true;
     try {
       if (peerConnection != null) await disconnect();
+      status.value = P2PStatus.connecting;
       myUuid ??= await deviceService.getDeviceUuid();
       remoteDeviceUuid = msg['from_uuid'] as String?;
       isCaller = false;
+      ensureSignaling();
 
       peerConnection = await createPeer(listenForRemoteChannel: true);
       await applyRemoteDescription(RTCSessionDescription(msg['sdp'], 'offer'));
 
       final answer = await peerConnection!.createAnswer();
       await peerConnection!.setLocalDescription(answer);
-
-      await postOrThrow('/p2p/answer', {
-        'from_uuid': myUuid,
-        'to_uuid': msg['from_uuid'],
-        'sdp': answer.sdp,
-      });
-      log('answer envoyée au backend');
-      startSignaling();
+      await signaling!.send('answer', remoteDeviceUuid!, {'sdp': answer.sdp});
+      log('answer envoyée');
+    } catch (e) {
+      status.value = P2PStatus.failed;
+      log('onOffer échec: $e');
     } finally {
       handlingOffer = false;
     }
@@ -246,20 +160,21 @@ class P2PService {
   }
 
   Future<void> onIce(Map<String, dynamic> msg) async {
-    final candidate = RTCIceCandidate(
+    if (peerConnection == null) return;
+    final c = RTCIceCandidate(
       msg['candidate'],
       msg['sdpMid'],
       msg['sdpMLineIndex'],
     );
     if (remoteDescriptionSet) {
-      await peerConnection!.addCandidate(candidate);
+      await peerConnection!.addCandidate(c);
     } else {
-      pendingIce.add(candidate);
+      pendingIce.add(c);
     }
   }
 
-  Future<void> applyRemoteDescription(RTCSessionDescription desc) async {
-    await peerConnection!.setRemoteDescription(desc);
+  Future<void> applyRemoteDescription(RTCSessionDescription d) async {
+    await peerConnection!.setRemoteDescription(d);
     remoteDescriptionSet = true;
     for (final c in pendingIce) {
       await peerConnection!.addCandidate(c);
@@ -267,12 +182,65 @@ class P2PService {
     pendingIce.clear();
   }
 
-  void log(String msg) => print('[P2P] $msg');
-}
+  // -------- WebRTC --------
 
-class P2PException implements Exception {
-  final String message;
-  P2PException(this.message);
-  @override
-  String toString() => 'P2PException: $message';
+  Future<RTCPeerConnection> createPeer({required bool listenForRemoteChannel}) async {
+    final pc = await createPeerConnection(iceConfig);
+    pc.onIceCandidate = sendIceCandidate;
+    pc.onConnectionState = (s) => log('connection state: $s');
+    if (listenForRemoteChannel) pc.onDataChannel = bindDataChannel;
+    return pc;
+  }
+
+  void bindDataChannel(RTCDataChannel ch) {
+    dataChannel = ch;
+    ch.onDataChannelState = (s) {
+      log('data channel: $s');
+      if (s == RTCDataChannelState.RTCDataChannelOpen) {
+        status.value = P2PStatus.connected;
+        signaling?.stop();
+        if (isCaller) sendMessage();
+      }
+    };
+    ch.onMessage = (m) {
+      log('message reçu: ${m.text}');
+      messagesController.add(m.text);
+      disconnect();
+    };
+  }
+
+  Future<void> sendIceCandidate(RTCIceCandidate c) async {
+    if (myUuid == null || remoteDeviceUuid == null || c.candidate == null) return;
+    try {
+      await signaling!.send('ice', remoteDeviceUuid!, {
+        'candidate': c.candidate,
+        'sdpMid': c.sdpMid,
+        'sdpMLineIndex': c.sdpMLineIndex,
+      });
+    } catch (e) {
+      // Un ICE perdu n'est pas fatal: WebRTC en envoie plusieurs.
+      log('sendIce: $e');
+    }
+  }
+
+  // -------- Config ICE depuis .env --------
+
+  Map<String, dynamic> get iceConfig {
+    final servers = <Map<String, dynamic>>[];
+    final stun = dotenv.env['STUN_URL'];
+    final turn = dotenv.env['TURN_URL'];
+    if (stun != null && stun.isNotEmpty) {
+      servers.add({'urls': stun});
+    }
+    if (turn != null && turn.isNotEmpty) {
+      servers.add({
+        'urls': turn,
+        'username': dotenv.env['TURN_USER'] ?? '',
+        'credential': dotenv.env['TURN_PASS'] ?? '',
+      });
+    }
+    return {'iceServers': servers};
+  }
+
+  void log(String msg) => print('[P2P] $msg');
 }
