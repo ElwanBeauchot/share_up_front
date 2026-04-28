@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:share_up_front/feature/scan/scan_state.dart';
 import 'package:share_up_front/theme/app_theme.dart';
 
+import '../../../models/device_model.dart';
+
 class DeviceCard extends StatelessWidget {
-  final DeviceModel device;
+  final DeviceScanModel device;
   final VoidCallback onTap;
 
   const DeviceCard({

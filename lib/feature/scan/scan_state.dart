@@ -1,24 +1,8 @@
-class DeviceModel {
-  final String name;
-  final String os;
-
-  const DeviceModel({
-    required this.name,
-    required this.os,
-  });
-
-  factory DeviceModel.fromJson(Map<String, dynamic> json) {
-    return DeviceModel(
-      name: json['device_name'] ?? '',
-      os: json['os'] ?? '',
-    );
-  }
-
-}
+import '../../models/device_model.dart';
 
 class ScanState {
   final bool isLoading;
-  final List<DeviceModel> devices;
+  final List<DeviceScanModel> devices;
   final String? errorMessage;
   final int animationSeed;
 
@@ -31,7 +15,7 @@ class ScanState {
 
   ScanState copyWith({
     bool? isLoading,
-    List<DeviceModel>? devices,
+    List<DeviceScanModel>? devices,
     String? errorMessage,
     int? animationSeed,
   }) {

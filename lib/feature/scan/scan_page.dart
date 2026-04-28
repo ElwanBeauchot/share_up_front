@@ -8,6 +8,8 @@ import 'package:share_up_front/feature/scan/widgetsScanPage/scan_rescan_button.d
 import 'package:share_up_front/theme/app_theme.dart';
 import 'package:share_up_front/widgets/slide_fade_in.dart';
 
+import '../../models/device_model.dart';
+
 class ScanPage extends StatefulWidget {
   const ScanPage({super.key});
 
@@ -31,7 +33,7 @@ class _ScanPageState extends State<ScanPage> {
     super.dispose();
   }
 
-  Future<void> _openSelectFiles(DeviceModel device) async {
+  Future<void> _openSelectFiles(DeviceScanModel device) async {
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => SelectFilesPage(
