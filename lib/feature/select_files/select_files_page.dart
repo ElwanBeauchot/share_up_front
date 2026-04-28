@@ -25,6 +25,7 @@ class SelectFilesPage extends StatefulWidget {
 class _SelectFilesPageState extends State<SelectFilesPage> {
   late final SelectFilesController _controller;
 
+// Creation de la page  
   @override
   void initState() {
     super.initState();
@@ -35,6 +36,7 @@ class _SelectFilesPageState extends State<SelectFilesPage> {
     _controller.loadFiles();
   }
 
+// Destruction de la page
   @override
   void dispose() {
     _controller.dispose();

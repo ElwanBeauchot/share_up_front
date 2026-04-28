@@ -11,7 +11,7 @@ class P2PService {
   RTCPeerConnection? _peerConnection;
   RTCDataChannel? _dataChannel;
   final ApiService _api = ApiService();
-  final DeviceService _deviceService = DeviceService();
+  late final DeviceService _deviceService = DeviceService(_api);
   Timer? _pollingTimer;
   String? _remoteDeviceUuid;
   String? _myUuid;

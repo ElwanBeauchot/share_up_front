@@ -1,13 +1,11 @@
+import '../../models/device_model.dart';
+
 class DeviceModel {
   final String uuid;
   final String name;
   final String os;
 
-  const DeviceModel({
-    required this.uuid,
-    required this.name,
-    required this.os,
-  });
+  const DeviceModel({required this.uuid, required this.name, required this.os});
 
   factory DeviceModel.fromJson(Map<String, dynamic> json) {
     return DeviceModel(
@@ -16,12 +14,11 @@ class DeviceModel {
       os: json['os'] ?? '',
     );
   }
-
 }
 
 class ScanState {
   final bool isLoading;
-  final List<DeviceModel> devices;
+  final List<DeviceScanModel> devices;
   final String? errorMessage;
   final int animationSeed;
 
@@ -34,7 +31,7 @@ class ScanState {
 
   ScanState copyWith({
     bool? isLoading,
-    List<DeviceModel>? devices,
+    List<DeviceScanModel>? devices,
     String? errorMessage,
     int? animationSeed,
   }) {

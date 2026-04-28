@@ -25,17 +25,17 @@ class ApiService {
           .timeout(_timeout);
 
       if (response.statusCode == 200) {
-        return jsonDecode(response.body) as Map<String, dynamic>;
+        return {'code': 200, 'message': 'Success', 'data': jsonDecode(response.body) as Map<String, dynamic>};
       } else {
         print('Erreur API POST: ${response.statusCode} - ${response.body}');
-        return {};
+        return {'code': response.statusCode, 'message': response.body};
       }
     } on TimeoutException catch (e) {
       print('Timeout API POST $endpoint: $e');
-      return {};
+      return {'code': 408, 'message': 'Request timed out'};
     } catch (e) {
       print('Erreur API POST $endpoint: $e');
-      return {};
+      return {'code': 500, 'message': 'Internal error'};
     }
   }
 
@@ -47,17 +47,17 @@ class ApiService {
           .timeout(_timeout);
 
       if (response.statusCode == 200) {
-        return jsonDecode(response.body) as Map<String, dynamic>;
+        return {'code': 200, 'message': 'Success', 'data': jsonDecode(response.body) as Map<String, dynamic>};
       } else {
-        print('Erreur API GET: ${response.statusCode} - ${response.body}');
-        return {};
+        print('Erreur API POST: ${response.statusCode} - ${response.body}');
+        return {'code': response.statusCode, 'message': response.body};
       }
     } on TimeoutException catch (e) {
-      print('Timeout API GET $endpoint: $e');
-      return {};
+      print('Timeout API POST $endpoint: $e');
+      return {'code': 408, 'message': 'Request timed out'};
     } catch (e) {
-      print('Erreur API GET $endpoint: $e');
-      return {};
+      print('Erreur API POST $endpoint: $e');
+      return {'code': 500, 'message': 'Internal error'};
     }
   }
 }
