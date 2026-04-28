@@ -8,6 +8,8 @@ import 'package:share_up_front/feature/scan/widgetsScanPage/scan_rescan_button.d
 import 'package:share_up_front/theme/app_theme.dart';
 import 'package:share_up_front/widgets/slide_fade_in.dart';
 
+import '../../models/device_model.dart';
+
 class ScanPage extends StatefulWidget {
   const ScanPage({super.key});
 
@@ -33,7 +35,7 @@ class _ScanPageState extends State<ScanPage> {
     super.dispose();
   }
 
-  Future<void> _openSelectFiles(DeviceModel device) async { // Fonction pour ouvrir la page de sélection de fichiers
+  Future<void> _openSelectFiles(DeviceScanModel device) async { // Fonction pour ouvrir la page de sélection de fichiers
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => SelectFilesPage( // Ouvre la page de sélection de fichiers en passant le nom de l'appareil sélectionné

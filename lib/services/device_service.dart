@@ -2,17 +2,20 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
+import '../models/device_model.dart';
 import 'api_service.dart';
 
 class DeviceService {
-  final ApiService _api = ApiService();
+  final ApiService _api;
+  DeviceService(this._api);
+
   final DeviceInfoPlugin _deviceInfo = DeviceInfoPlugin();
   final Uuid _uuid = Uuid();
 
   static const String _uuidKey = "device_uuid";
 
   /// Récupère ou génère un UUID unique et persistant
-  Future<String> _getDeviceUuid() async {
+  Future<String> getDeviceUuid() async {
     final prefs = await SharedPreferences.getInstance();
     String? uuid = prefs.getString(_uuidKey);
     if (uuid == null) {
@@ -22,34 +25,9 @@ class DeviceService {
     return uuid;
   }
 
-  /// Récupère l'UUID du device (méthode publique)
-  Future<String> getDeviceUuid() async {
-    return _getDeviceUuid();
-  }
-
-  /// Récupère les infos du device + géolocalisation
-  Future<Map<String, dynamic>> getDeviceData() async {
-    String deviceName = "Unknown";
-    String os = "Unknown";
-
-    try {
-      final platform = await _deviceInfo.deviceInfo;
-      if (platform is AndroidDeviceInfo) {
-        final brand = platform.brand;
-        final model = platform.model;
-        deviceName = "$brand $model".trim();
-        if (deviceName.isEmpty) deviceName = "Android Device";
-        os = "Android ${platform.version.release}";
-      } else if (platform is IosDeviceInfo) {
-        deviceName = platform.name;
-        os = "iOS ${platform.systemVersion}";
-      }
-    } catch (e) {
-      print("Erreur récupération device info: $e");
-    }
-
-    final deviceUuid = await _getDeviceUuid();
-
+  /// Récupère la position actuelle du device
+  /// Gere si permissions refusees ou erreur liees a la localisation
+  Future<Map<String, dynamic>> getDevicePosition() async {
     Position position;
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -74,64 +52,97 @@ class DeviceService {
       );
     } catch (e) {
       print("Erreur récupération position: $e");
-      position = Position(
-        longitude: 0.0,
-        latitude: 0.0,
-        timestamp: DateTime.now(),
-        accuracy: 0.0,
-        altitude: 0.0,
-        heading: 0.0,
-        speed: 0.0,
-        speedAccuracy: 0.0,
-        headingAccuracy: 0.0,
-        altitudeAccuracy: 0.0,
-      );
+      throw Exception("Impossible de récupérer la position du device");
+    }
+    return {"longitude": position.longitude, "latitude": position.latitude};
+  }
+
+  /// recuperer les infos du device (nom, os)
+  Future<DeviceScanModel> getDeviceInfo() async {
+    String deviceName = "Unknown";
+    String os = "Unknown";
+
+    try {
+      final platform = await _deviceInfo.deviceInfo;
+      if (platform is AndroidDeviceInfo) {
+        final brand = platform.brand;
+        final model = platform.model;
+        deviceName = "$brand $model".trim();
+        if (deviceName.isEmpty) deviceName = "Android Device"; // cas android
+        os = "Android ${platform.version.release}";
+      } else if (platform is IosDeviceInfo) { // cas ios
+        deviceName = platform.name;
+        os = "iOS ${platform.systemVersion}";
+      }
+      // pour plus tard : rajouter d'autres plateformes
+    } catch (e) {
+      print("Erreur récupération device info: $e");
     }
 
-    return {
+    return DeviceScanModel(
+      name: deviceName,
+      os: os
+    );
+  }
+
+  /// Send device data to backend
+  Future<Map<String, dynamic>> sendDeviceData(Map<String, dynamic> position, String deviceUuid, DeviceScanModel deviceInfo) async {
+
+    if (deviceUuid.isEmpty) {
+      throw Exception("UUID du device est vide");
+    }
+
+    if (deviceInfo.name.isEmpty || deviceInfo.os.isEmpty) {
+      throw Exception("Informations du device incomplètes");
+    }
+
+    if (position["longitude"] == null || position["latitude"] == null) {
+      throw Exception("Position du device invalide");
+    }
+
+    final deviceData = {
       "uuid": deviceUuid,
-      "device_name": deviceName,
-      "os": os,
+      "device_name": deviceInfo.name,
+      "os": deviceInfo.os,
       "last_seen": DateTime.now().toIso8601String(),
       "geolocalisation": {
         "type": "Point",
-        "coordinates": [position.longitude, position.latitude],
+        "coordinates": [position["longitude"], position["latitude"]],
       },
     };
-  }
 
-  /// Envoie les infos du device au backend
-  Future<Map<String, dynamic>> sendDeviceData() async {
-    final deviceData = await getDeviceData();
-    return await _api.post('/devices/add_db', deviceData);
-  }
+    final response = await _api.post('/devices/add', deviceData);
 
-  // get nearby devices
-  Future<List<dynamic>> getNearbyDevices() async {
-    Position position;
-    try {
-      position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-    } catch (e) {
-      print("Erreur récupération position: $e");
-      return [];
+    if (response['code'] != 200 || response['data'] == null) {
+      throw Exception("Erreur enregistrement device: ${response['message']}");
     }
+    return response;
+  }
 
-    final myUuid = await _getDeviceUuid();
+  /// get nearby devices
+  Future<List<DeviceScanModel>> getNearbyDevices(Map<String, dynamic> position, String myUuid) async {
+
+    if(position["longitude"] == null || position["latitude"] == null) {
+      throw Exception("Position du device invalide");
+    }
+    if (myUuid.isEmpty) {
+      throw Exception("UUID du device est vide");
+    }
 
     final data = {
-      "longitude": position.longitude,
-      "latitude": position.latitude,
+      "longitude": position["longitude"],
+      "latitude": position["latitude"],
       "uuid": myUuid,
     };
-
     final response = await _api.post('/devices/nearby', data);
 
-    if (response["devices"] == null) {
+    if (response['code'] != 200 || response['data'] == null) {
+      throw Exception("Erreur récupération devices proches: ${response['message']}");
+    } else if((response['data']["devices"] as List).isEmpty) {
       return [];
     }
-
-    return response["devices"];
+    List devicesJson = response['data']["devices"];
+    List<DeviceScanModel> devices = devicesJson.map((e)=> DeviceScanModel.fromJson(e)).toList();
+    return devices;
   }
 }
