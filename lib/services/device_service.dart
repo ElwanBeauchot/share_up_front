@@ -57,6 +57,8 @@ class DeviceService {
     return {"longitude": position.longitude, "latitude": position.latitude};
   }
 
+  // to do : ajouter methode pour update la localisation
+
   /// recuperer les infos du device (nom, os)
   Future<DeviceScanModel> getDeviceInfo() async {
     String deviceName = "Unknown";
@@ -104,7 +106,7 @@ class DeviceService {
       "uuid": deviceUuid,
       "device_name": deviceInfo.name,
       "os": deviceInfo.os,
-      "last_seen": DateTime.now().toIso8601String(),
+      "last_seen": DateTime.now().toUtc().toIso8601String(),
       "geolocalisation": {
         "type": "Point",
         "coordinates": [position["longitude"], position["latitude"]],
