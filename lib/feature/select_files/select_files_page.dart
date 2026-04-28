@@ -10,10 +10,12 @@ import 'widgetsSelectFiles/send_button.dart';
 
 class SelectFilesPage extends StatefulWidget {
   final String deviceName;
+  final String deviceUuid;
 
   const SelectFilesPage({
     super.key,
     required this.deviceName,
+    required this.deviceUuid,
   });
 
   @override
@@ -28,6 +30,7 @@ class _SelectFilesPageState extends State<SelectFilesPage> {
     super.initState();
     _controller = SelectFilesController(
       deviceName: widget.deviceName,
+      deviceUuid: widget.deviceUuid,
     );
     _controller.loadFiles();
   }
@@ -144,8 +147,10 @@ class _SelectFilesPageState extends State<SelectFilesPage> {
                   const SizedBox(height: 12),
 
                   SendButton(
-                    isEnabled: state.hasSelectedFiles,
-                    onPressed: state.hasSelectedFiles ? () {} : null,
+                    isEnabled: state.hasSelectedFiles && !state.isSending,
+                    onPressed: state.hasSelectedFiles && !state.isSending
+                        ? _controller.sendHello
+                        : null,
                   ),
                 ],
               ),

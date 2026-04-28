@@ -1,10 +1,32 @@
 import 'package:flutter/foundation.dart';
+import '../../services/p2p_service.dart';
 import 'select_files_state.dart';
 
 class SelectFilesController extends ValueNotifier<SelectFilesState> {
+  final String deviceUuid;
+  final P2PService _p2p = P2PService();
+
   SelectFilesController({
     required String deviceName,
+    required this.deviceUuid,
   }) : super(SelectFilesState(deviceName: deviceName));
+
+  Future<void> sendHello() async {
+    value = value.copyWith(isSending: true, errorMessage: null);
+    try {
+      _p2p.onMessageReceived = (text) {
+        print('[P2P] message reçu: $text');
+      };
+      await _p2p.connectToDevice(deviceUuid);
+      await _p2p.sendMessage();
+    } catch (e) {
+      value = value.copyWith(
+        errorMessage: 'Échec de l\'envoi P2P: $e',
+      );
+    } finally {
+      value = value.copyWith(isSending: false);
+    }
+  }
 
   Future<void> loadFiles() async {
     // TODO: remplacer ce faux chargement par la vraie recuperation

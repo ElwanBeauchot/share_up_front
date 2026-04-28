@@ -1,14 +1,17 @@
 class DeviceModel {
+  final String uuid;
   final String name;
   final String os;
 
   const DeviceModel({
+    required this.uuid,
     required this.name,
     required this.os,
   });
 
   factory DeviceModel.fromJson(Map<String, dynamic> json) {
     return DeviceModel(
+      uuid: json['uuid'] ?? '',
       name: json['device_name'] ?? '',
       os: json['os'] ?? '',
     );
