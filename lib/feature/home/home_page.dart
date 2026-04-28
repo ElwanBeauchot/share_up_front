@@ -18,7 +18,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   late final HomeController _controller;
 
-// Create Page 
+// Creation de la page  
   @override
   void initState() {
     super.initState();
@@ -26,7 +26,7 @@ class _HomePageState extends State<HomePage> {
     _controller.loadHomeData();
   }
 
-// Destroy Page
+// Destruction de la page
   @override
   void dispose() {
     _controller.dispose();

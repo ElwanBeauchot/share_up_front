@@ -20,6 +20,7 @@ class ScanPage extends StatefulWidget {
 class _ScanPageState extends State<ScanPage> {
   late final ScanController _controller;
 
+// Creation de la page  
   @override
   void initState() {
     super.initState();
@@ -27,25 +28,25 @@ class _ScanPageState extends State<ScanPage> {
     _controller.loadDevices();
   }
 
+// Destruction de la page
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
   }
 
-  Future<void> _openSelectFiles(DeviceScanModel device) async {
+  Future<void> _openSelectFiles(DeviceScanModel device) async { // Fonction pour ouvrir la page de sélection de fichiers
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => SelectFilesPage(
+        builder: (_) => SelectFilesPage( // Ouvre la page de sélection de fichiers en passant le nom de l'appareil sélectionné
           deviceName: device.name,
         ),
       ),
     );
 
-    if (!mounted) return;
-    // TODO: au retour, relancer ici un vrai scan si on veut rafraichir
-    // les appareils disponibles depuis l'API ou le service reseau.
-    await _controller.loadDevices();
+    if (!mounted) return; // Vérifie que le widget est toujours vivant.
+  
+    await _controller.loadDevices(); // fonction qui relance le scan pour rafraichir la liste des appareils 
   }
 
   @override
@@ -96,7 +97,7 @@ class _ScanPageState extends State<ScanPage> {
                                 const SizedBox(height: 18),
                             itemBuilder: (context, index) {
                               final device = state.devices[index];
-                              return SlideFadeIn(
+                              return SlideFadeIn( // Animation d'apparition
                                 key: ValueKey(
                                   'device_${device.name}_${state.animationSeed}',
                                 ),
