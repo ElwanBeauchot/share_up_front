@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:share_up_front/feature/history/history_state.dart';
 import 'package:share_up_front/theme/app_colors.dart';
 
+
 class HistoryFilterBar extends StatelessWidget {
-  final HistoryFilter selectedFilter;
+  final HistoryFilter selectedFilter; // L'etat actuel du filtre selectionné
   final ValueChanged<HistoryFilter> onChanged;
 
   const HistoryFilterBar({
@@ -44,7 +45,7 @@ class HistoryFilterBar extends StatelessWidget {
 class _FilterChip extends StatelessWidget {
   final String label;
   final bool isSelected;
-  final VoidCallback onTap;
+  final VoidCallback onTap; // Callback pour gérer le tap sur le chip il attend rien et retourne rien
 
   const _FilterChip({
     required this.label,
@@ -54,7 +55,7 @@ class _FilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
+    return InkWell( // Permet de rendre clickable 
       borderRadius: BorderRadius.circular(999),
       onTap: onTap,
       child: AnimatedContainer(
