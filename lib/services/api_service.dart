@@ -1,18 +1,16 @@
 import 'dart:convert';
 import 'dart:async';
 import 'package:http/http.dart' as http;
-import '../config/api_config.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class ApiService {
   static const Duration _timeout = Duration(seconds: 20);
 
-  String apiUrl = dotenv.env['API_URL']!;
+  String apiUrl = dotenv.env['API_URL']!; // "http://10.57.33.146:8080"
   String apiKey = dotenv.env['API_KEY']!;
 
   Future<Map<String, dynamic>> post(String endpoint, Map<String, dynamic> data) async {
     final url = Uri.parse('$apiUrl$endpoint');
-
     try {
       final response = await http
           .post(url, headers: {'Content-Type': 'application/json', 'x-api-key': apiKey}, body: jsonEncode(data))
@@ -34,8 +32,7 @@ class ApiService {
   }
 
   Future<Map<String, dynamic>> get(String endpoint) async {
-    final url = Uri.parse('${ApiConfig.baseUrl}$endpoint');
-
+    final url = Uri.parse('$apiUrl$endpoint');
     try {
       final response = await http.get(url, headers: {'x-api-key':apiKey}).timeout(_timeout);
 

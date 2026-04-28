@@ -6,6 +6,14 @@ class DeviceModel {
     required this.name,
     required this.os,
   });
+
+  factory DeviceModel.fromJson(Map<String, dynamic> json) {
+    return DeviceModel(
+      name: json['device_name'] ?? '',
+      os: json['os'] ?? '',
+    );
+  }
+
 }
 
 class ScanState {
