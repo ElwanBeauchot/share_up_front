@@ -1,54 +1,75 @@
-// feature/select_files/select_files_state.dart
-import 'dart:io';
+enum FileType {
+  image,
+  document,
+  audio,
+  video,
+}
 
-enum FileKind { image, pdf, audio, video, ppt, other }
-
-class SelectableFile {
-  final String id;
+class FileItemModel {
   final String name;
-  final int bytes;
-  final FileKind kind;
+  final String size;
+  final FileType type;
+  final bool isSelected;
 
-  final String? path;
-
-  const SelectableFile({
-    required this.id,
+  const FileItemModel({
     required this.name,
-    required this.bytes,
-    required this.kind,
-    this.path,
+    required this.size,
+    required this.type,
+    this.isSelected = false,
   });
 
-  bool get isLocal => path != null;
-
-  File? get localFile => path == null ? null : File(path!);
+  FileItemModel copyWith({
+    String? name,
+    String? size,
+    FileType? type,
+    bool? isSelected,
+  }) {
+    return FileItemModel(
+      name: name ?? this.name,
+      size: size ?? this.size,
+      type: type ?? this.type,
+      isSelected: isSelected ?? this.isSelected,
+    );
+  }
 }
 
 class SelectFilesState {
-  final String targetDeviceName;
-  final List<SelectableFile> files;
-  final Set<String> selectedIds;
+  final String deviceName;
+  final bool isLoading;
+  final List<FileItemModel> files;
+  final String? errorMessage;
+  final int animationSeed;
   final bool isSending;
 
   const SelectFilesState({
-    required this.targetDeviceName,
-    required this.files,
-    required this.selectedIds,
-    required this.isSending,
+    required this.deviceName,
+    this.isLoading = true,
+    this.files = const [],
+    this.errorMessage,
+    this.animationSeed = 0,
+    this.isSending = false,
   });
 
-  bool get canSend => selectedIds.isNotEmpty && !isSending;
+  List<FileItemModel> get selectedFiles {
+    return files.where((file) => file.isSelected).toList();
+  }
+
+  bool get hasSelectedFiles => selectedFiles.isNotEmpty;
 
   SelectFilesState copyWith({
-    String? targetDeviceName,
-    List<SelectableFile>? files,
-    Set<String>? selectedIds,
+    String? deviceName,
+    bool? isLoading,
+    List<FileItemModel>? files,
+    String? errorMessage,
+    int? animationSeed,
     bool? isSending,
   }) {
     return SelectFilesState(
-      targetDeviceName: targetDeviceName ?? this.targetDeviceName,
+      deviceName: deviceName ?? this.deviceName,
+      isLoading: isLoading ?? this.isLoading,
       files: files ?? this.files,
-      selectedIds: selectedIds ?? this.selectedIds,
+      errorMessage: errorMessage,
+      animationSeed: animationSeed ?? this.animationSeed,
       isSending: isSending ?? this.isSending,
     );
   }

@@ -30,7 +30,4 @@ class AppColors {
   static const Color fileVideo = Color(0xFF8B5CF6);
   static const Color filePpt = Color(0xFFF97316);
   static const Color fileOther = Color(0xFF64748B);
-
 }
-
-

@@ -1,69 +1,37 @@
-class ScanState {
-  final bool scanning;
-  final List<ScanDevice> devices;
-
-  const ScanState({this.scanning = true, this.devices = const []});
-
-  ScanState copyWith({bool? scanning, List<ScanDevice>? devices}) {
-    return ScanState(
-      scanning: scanning ?? this.scanning,
-      devices: devices ?? this.devices,
-    );
-  }
-}
-
-class GeoLoc {
-  final String type;
-  final List<double> coordinates;
-
-  GeoLoc({required this.type, required this.coordinates});
-
-  factory GeoLoc.fromJson(Map<String, dynamic> json) {
-    return GeoLoc(
-      type: json['type'],
-      coordinates: List<double>.from(
-        json['coordinates'].map((x) => x.toDouble()),
-      ),
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {'type': type, 'coordinates': coordinates};
-  }
-}
-
-class ScanDevice {
-  final String uuid;
-  final String deviceName;
+class DeviceModel {
+  final String name;
   final String os;
-  final String lastSeen;
-  final GeoLoc geolocalisation;
 
-  ScanDevice({
-    required this.uuid,
-    required this.deviceName,
+  const DeviceModel({
+    required this.name,
     required this.os,
-    required this.lastSeen,
-    required this.geolocalisation,
+  });
+}
+
+class ScanState {
+  final bool isLoading;
+  final List<DeviceModel> devices;
+  final String? errorMessage;
+  final int animationSeed;
+
+  const ScanState({
+    this.isLoading = true,
+    this.devices = const [],
+    this.errorMessage,
+    this.animationSeed = 0,
   });
 
-  factory ScanDevice.fromJson(Map<String, dynamic> json) {
-    return ScanDevice(
-      uuid: json['uuid'],
-      deviceName: json['device_name'],
-      os: json['os'],
-      lastSeen: json['last_seen'],
-      geolocalisation: GeoLoc.fromJson(json['geolocalisation']),
+  ScanState copyWith({
+    bool? isLoading,
+    List<DeviceModel>? devices,
+    String? errorMessage,
+    int? animationSeed,
+  }) {
+    return ScanState(
+      isLoading: isLoading ?? this.isLoading,
+      devices: devices ?? this.devices,
+      errorMessage: errorMessage,
+      animationSeed: animationSeed ?? this.animationSeed,
     );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'uuid': uuid,
-      'device_name': deviceName,
-      'os': os,
-      'last_seen': lastSeen,
-      'geolocalisation': geolocalisation.toJson(),
-    };
   }
 }

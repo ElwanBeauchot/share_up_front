@@ -1,80 +1,55 @@
-import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'scan_state.dart';
-import 'package:share_up_front/services/device_service.dart';
 
 class ScanController extends ValueNotifier<ScanState> {
   ScanController() : super(const ScanState());
 
-  final DeviceService _deviceService = DeviceService();
-  Timer? _timer;
+  Future<void> loadDevices() async {
+    // TODO: remplacer ce faux chargement par le vrai scan reseau/API.
+    // Exemple plus tard:
+    // 1. await deviceService.getNearbyDevices()
+    // 2. mapper la reponse back en DeviceModel
+    // 3. mettre a jour devices avec les vraies donnees
+    value = value.copyWith(
+      isLoading: true,
+      errorMessage: null,
+    );
 
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
+    try {
+      await Future.delayed(const Duration(milliseconds: 1400));
 
-  void startScan() {
-    value = value.copyWith(scanning: true, devices: const []);
-
-    _timer?.cancel();
-    _timer = Timer(const Duration(seconds: 2), () async {
-      try {
-        final nearbyDevices = await _deviceService.getNearbyDevices();
-
-        // Conversion Map -> ScanDevice
-        final devices = nearbyDevices.map<ScanDevice>((d) {
-          final geo = d["geolocalisation"] ?? {};
-          final coords = geo["coordinates"] ?? [0.0, 0.0];
-
-          return ScanDevice(
-            uuid: d["uuid"] ?? "",
-            deviceName: d["device_name"] ?? "",
-            os: d["os"] ?? "",
-            lastSeen: d["last_seen"] ?? "",
-            geolocalisation: GeoLoc(
-              type: geo["type"] ?? "Point",
-              coordinates: [
-                (coords[0] as num).toDouble(),
-                (coords[1] as num).toDouble(),
-              ],
-            ),
-          );
-        }).toList();
-
-        // ✅ Device de test toujours présent
-        final testDevice = ScanDevice(
-          uuid: 'TEST-DEVICE-UUID',
-          deviceName: 'iPhone de Marie',
-          os: 'iOS',
-          lastSeen: 'just now',
-          geolocalisation: GeoLoc(
-            type: 'Point',
-            coordinates: [2.3522, 48.8566], // Paris
+      value = value.copyWith(
+        isLoading: false,
+        devices: const [
+          DeviceModel(
+            name: 'iPhone de Marie',
+            os: 'iOS',
           ),
-        );
-
-        // Évite les doublons
-        final alreadyExists =
-        devices.any((d) => d.uuid == testDevice.uuid);
-
-        if (!alreadyExists) {
-          devices.insert(0, testDevice);
-        }
-
-        value = value.copyWith(
-          scanning: false,
-          devices: devices,
-        );
-      } catch (e) {
-        debugPrint("Erreur scan: $e");
-
-        value = value.copyWith(
-          scanning: false,
-          devices: [],
-        );
-      }
-    });
+          DeviceModel(
+            name: 'Samsung Galaxy S23',
+            os: 'Android',
+          ),
+          DeviceModel(
+            name: 'MacBook Pro',
+            os: 'macOS',
+          ),
+          DeviceModel(
+            name: 'iPad Air',
+            os: 'iOS',
+          ),
+          DeviceModel(
+            name: 'Pixel 8',
+            os: 'Android',
+          ),
+        ],
+        errorMessage: null,
+        animationSeed: value.animationSeed + 1,
+      );
+    } catch (_) {
+      value = value.copyWith(
+        isLoading: false,
+        errorMessage: 'Impossible de charger les appareils a proximite.',
+      );
+    }
   }
 }
