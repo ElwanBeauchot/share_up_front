@@ -11,10 +11,7 @@ import 'widgetsSelectFiles/send_button.dart';
 class SelectFilesPage extends StatefulWidget {
   final String deviceName;
 
-  const SelectFilesPage({
-    super.key,
-    required this.deviceName,
-  });
+  const SelectFilesPage({super.key, required this.deviceName});
 
   @override
   State<SelectFilesPage> createState() => _SelectFilesPageState();
@@ -23,17 +20,15 @@ class SelectFilesPage extends StatefulWidget {
 class _SelectFilesPageState extends State<SelectFilesPage> {
   late final SelectFilesController _controller;
 
-// Creation de la page  
+  // Creation de la page
   @override
   void initState() {
     super.initState();
-    _controller = SelectFilesController(
-      deviceName: widget.deviceName,
-    );
+    _controller = SelectFilesController(deviceName: widget.deviceName);
     _controller.loadFiles();
   }
 
-// Destruction de la page
+  // Destruction de la page
   @override
   void dispose() {
     _controller.dispose();
@@ -53,9 +48,7 @@ class _SelectFilesPageState extends State<SelectFilesPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SelectFilesHeader(
-                    deviceName: state.deviceName,
-                  ),
+                  SelectFilesHeader(deviceName: state.deviceName),
 
                   const SizedBox(height: 16),
 
@@ -101,9 +94,7 @@ class _SelectFilesPageState extends State<SelectFilesPage> {
                             ),
                           )
                         : ListView.separated(
-                            key: ValueKey(
-                              'files_list_${state.animationSeed}',
-                            ),
+                            key: ValueKey('files_list_${state.animationSeed}'),
                             itemCount: state.files.length,
                             separatorBuilder: (context, index) {
                               return const SizedBox(height: 14);
@@ -118,7 +109,8 @@ class _SelectFilesPageState extends State<SelectFilesPage> {
                                 delay: Duration(milliseconds: 70 * index),
                                 child: FileCard(
                                   file: file,
-                                  onTap: () => _controller.toggleFileSelection(index),
+                                  onTap: () =>
+                                      _controller.toggleFileSelection(index),
                                 ),
                               );
                             },
@@ -140,7 +132,9 @@ class _SelectFilesPageState extends State<SelectFilesPage> {
                   const SizedBox(height: 16),
 
                   AddFilesButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      _controller.addFiles();
+                    },
                   ),
 
                   const SizedBox(height: 12),
