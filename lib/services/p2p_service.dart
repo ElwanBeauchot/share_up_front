@@ -1,12 +1,19 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:path_provider/path_provider.dart';
 import 'api_service.dart';
 import 'device_service.dart';
 import 'signaling_client.dart';
 
 enum P2PStatus { idle, connecting, connected, failed }
+
+// Taille de chunk pour le DataChannel SCTP (recommandé ≤ 16 KB).
+const int _chunkSize = 16 * 1024;
 
 class P2PService {
   static final P2PService instance = P2PService.internal();
@@ -29,10 +36,16 @@ class P2PService {
   bool remoteDescriptionSet = false;
   final List<RTCIceCandidate> pendingIce = [];
 
-  // Flux de messages reçus côté DataChannel.
-  final StreamController<String> messagesController =
+  // Fichier que (A) souhaite envoyer dès l'ouverture du DataChannel.
+  String? pendingFilePath;
+
+  // Etat de réception côté (B): rempli au reçu du header file_start.
+  _IncomingFile? _incoming;
+
+  // Flux des fichiers reçus (chemin local du fichier sauvegardé).
+  final StreamController<String> receivedFilesController =
       StreamController<String>.broadcast();
-  Stream<String> get messages => messagesController.stream;
+  Stream<String> get receivedFiles => receivedFilesController.stream;
 
   // État observable de la connexion P2P.
   final ValueNotifier<P2PStatus> status = ValueNotifier(P2PStatus.idle);
@@ -48,12 +61,14 @@ class P2PService {
     });
   }
 
-  // (A) point d'entrée côté caller: déclenche tout le handshake P2P vers (B)
-  Future<void> connectToDevice(String deviceUuid) async {
-    log('connectToDevice → $deviceUuid');
+  // (A) point d'entrée côté caller: déclenche tout le handshake P2P vers (B).
+  // Si [filePath] est fourni, le fichier sera envoyé dès l'ouverture du canal.
+  Future<void> connectToDevice(String deviceUuid, {String? filePath}) async {
+    log('connectToDevice → $deviceUuid (file=${filePath ?? 'aucun'})');
     await disconnect(); // cleanup d'une éventuelle session précédente
     status.value = P2PStatus.connecting;
     try {
+      pendingFilePath = filePath; // mémorise le fichier à envoyer dès DC ouvert
       remoteDeviceUuid = deviceUuid; // uuid de (B)
       myUuid ??= await deviceService.getDeviceUuid();
       isCaller = true; // on est l'initiateur
@@ -63,10 +78,7 @@ class P2PService {
         listenForRemoteChannel: false,
       ); // false -> c'est nous qui créons le canal, pas besoin d'écouter
       bindDataChannel(
-        await peerConnection!.createDataChannel(
-          'messages',
-          RTCDataChannelInit(),
-        ),
+        await peerConnection!.createDataChannel('files', RTCDataChannelInit()),
       ); // création du DataChannel local + branchement des callbacks
 
       final offer = await peerConnection!
@@ -84,17 +96,6 @@ class P2PService {
     }
   }
 
-  // envoi d'un message texte sur le DataChannel (déclenché auto à l'ouverture côté A)
-  Future<void> sendMessage() async {
-    if (dataChannel?.state == RTCDataChannelState.RTCDataChannelOpen) {
-      dataChannel!.send(RTCDataChannelMessage('Hello P2P'));
-      log('"Hello P2P" envoyé');
-    } else {
-      // si le canal n'est pas encore ouvert, on log et on abandonne
-      log('canal non ouvert (state=${dataChannel?.state})');
-    }
-  }
-
   // ferme proprement la session P2P et reset tous les flags pour pouvoir réutiliser le service
   Future<void> disconnect() async {
     signaling?.stop(); // ferme la SSE (plus besoin pour cette session)
@@ -104,6 +105,8 @@ class P2PService {
     peerConnection = null;
     remoteDeviceUuid = null;
     pendingIce.clear(); // vide le tampon ICE
+    pendingFilePath = null; // plus rien à envoyer
+    _incoming = null; // plus rien à recevoir
     remoteDescriptionSet = false;
     isCaller = false;
     status.value = P2PStatus.idle; // on revient à l'état initial
@@ -194,11 +197,11 @@ class P2PService {
   // (A) ou (B): reçoit un candidat ICE du peer distant, à ajouter au peerConnection
   Future<void> onIce(Map<String, dynamic> msg) async {
     if (peerConnection == null) return; // safety: pas de session active
-    final c = RTCIceCandidate(
-      msg['candidate'],
-      msg['sdpMid'],
-      msg['sdpMLineIndex'],
-    );
+    final cand = msg['candidate'] as String?;
+    if (cand == null || cand.isEmpty) {
+      return; // end-of-candidates ou candidat vide: on ignore
+    }
+    final c = RTCIceCandidate(cand, msg['sdpMid'], msg['sdpMLineIndex']);
     if (remoteDescriptionSet) {
       // remote description posée -> on peut ajouter le candidat directement
       await peerConnection!.addCandidate(c);
@@ -233,6 +236,9 @@ class P2PService {
     pc.onIceCandidate =
         sendIceCandidate; // chaque candidat ICE local part vers le peer
     pc.onConnectionState = (s) => log('connection state: $s');
+    pc.onIceConnectionState = (s) =>
+        log('ice connection state: $s'); // utile pour diag ICE failed
+    pc.onIceGatheringState = (s) => log('ice gathering state: $s');
     if (listenForRemoteChannel) {
       // (B) seul le receveur écoute: c'est (A) qui crée le DataChannel
       pc.onDataChannel = bindDataChannel;
@@ -249,15 +255,24 @@ class P2PService {
         // canal ouvert: la SSE n'est plus utile, on libère
         status.value = P2PStatus.connected;
         signaling?.stop();
-        if (isCaller) sendMessage(); // (A) envoie automatiquement "Hello P2P"
+        if (isCaller && pendingFilePath != null) {
+          // (A) envoie automatiquement le fichier mémorisé
+          // ignore: discarded_futures
+          _sendFile(pendingFilePath!);
+        }
       }
     };
-    ch.onMessage = (m) {
-      log('message reçu: ${m.text}');
-      messagesController.add(
-        m.text,
-      ); // notifie les listeners (UI, main.dart...)
-      disconnect(); // tunnel a fait son office: on ferme proprement
+    ch.onMessage = (m) async {
+      // dispatch binaire (chunks de fichier) vs texte (header / ack)
+      try {
+        if (m.isBinary) {
+          await _onBinaryChunk(m.binary);
+        } else {
+          await _onTextMessage(m.text);
+        }
+      } catch (e) {
+        log('onMessage erreur: $e');
+      }
     };
   }
 
@@ -276,6 +291,131 @@ class P2PService {
       // Un ICE perdu n'est pas fatal: WebRTC en envoie plusieurs.
       log('sendIce: $e');
     }
+  }
+
+  // -------- Envoi de fichier (côté A) --------
+
+  // protocole minimal:
+  //  1) un message texte JSON {type:'file_start', name, size}
+  //  2) N messages binaires (chunks de _chunkSize octets)
+  //  3) (B) renvoie {type:'file_received'} quand il a tout reçu -> on disconnect
+  Future<void> _sendFile(String path) async {
+    final file = File(path);
+    if (!await file.exists()) {
+      log('fichier introuvable: $path');
+      await disconnect();
+      return;
+    }
+    final size = await file.length();
+    final name = file.uri.pathSegments.isNotEmpty
+        ? file.uri.pathSegments.last
+        : 'file.bin';
+
+    log('envoi fichier "$name" ($size octets)');
+
+    // 1) header JSON en texte
+    dataChannel!.send(
+      RTCDataChannelMessage(
+        jsonEncode({'type': 'file_start', 'name': name, 'size': size}),
+      ),
+    );
+
+    // 2) chunks binaires lus depuis le disque pour ne pas tout charger en RAM
+    var sent = 0;
+    await for (final chunk in file.openRead()) {
+      // openRead() peut renvoyer des morceaux > _chunkSize, on resplit.
+      for (var offset = 0; offset < chunk.length; offset += _chunkSize) {
+        final end = (offset + _chunkSize <= chunk.length)
+            ? offset + _chunkSize
+            : chunk.length;
+        final slice = Uint8List.fromList(chunk.sublist(offset, end));
+        await _waitForBuffer(); // backpressure: on attend si le buffer SCTP gonfle
+        dataChannel!.send(RTCDataChannelMessage.fromBinary(slice));
+        sent += slice.length;
+      }
+    }
+    log('fichier envoyé ($sent/$size octets), en attente de l\'ack…');
+  }
+
+  // Backpressure simple: si le buffer SCTP gonfle, on attend qu'il se vide
+  // pour ne pas saturer la mémoire native côté WebRTC.
+  Future<void> _waitForBuffer() async {
+    const maxBuffered = 1 * 1024 * 1024; // 1 MB
+    final ch = dataChannel;
+    if (ch == null) return;
+    while ((ch.bufferedAmount ?? 0) > maxBuffered) {
+      await Future.delayed(const Duration(milliseconds: 20));
+    }
+  }
+
+  // -------- Réception de fichier (côté B) --------
+
+  // gère les messages texte du DataChannel: header de fichier ou ack.
+  Future<void> _onTextMessage(String raw) async {
+    final data = jsonDecode(raw);
+    if (data is! Map<String, dynamic>) return;
+    final type = data['type'];
+    switch (type) {
+      case 'file_start':
+        // (B) reçoit le header: on prépare le buffer de réception
+        final name = data['name'] as String? ?? 'file.bin';
+        final size = (data['size'] as num?)?.toInt() ?? 0;
+        log('header reçu: "$name" ($size octets)');
+        _incoming = _IncomingFile(name: name, expectedSize: size);
+        break;
+      case 'file_received':
+        // (A) reçoit l'ack du peer (B): tout est parti -> on coupe
+        log('ack reçu, fermeture');
+        await disconnect();
+        break;
+    }
+  }
+
+  // accumule les chunks binaires; quand on a la taille annoncée, on sauvegarde.
+  Future<void> _onBinaryChunk(Uint8List bytes) async {
+    final rx = _incoming;
+    if (rx == null) {
+      // safety: on a reçu des octets sans header préalable
+      log('chunk reçu sans header, ignoré');
+      return;
+    }
+    rx.builder.add(bytes);
+    if (rx.builder.length >= rx.expectedSize) {
+      // fichier complet -> écriture sur disque
+      final savedPath = await _saveIncoming(rx);
+      log('fichier reçu et sauvegardé: $savedPath');
+      receivedFilesController.add(
+        savedPath,
+      ); // notifie les listeners (UI, main.dart...)
+      // ack pour permettre à (A) de fermer proprement
+      try {
+        dataChannel?.send(
+          RTCDataChannelMessage(jsonEncode({'type': 'file_received'})),
+        );
+      } catch (_) {
+        // si l'ack ne part pas, ce n'est pas grave: timeout côté A
+      }
+      _incoming = null;
+      // petit délai pour laisser partir l'ack avant de fermer le canal
+      await Future.delayed(const Duration(milliseconds: 200));
+      await disconnect();
+    }
+  }
+
+  // écrit le fichier reçu dans le dossier documents de l'app.
+  Future<String> _saveIncoming(_IncomingFile rx) async {
+    final dir = await getApplicationDocumentsDirectory();
+    final safeName = _sanitizeFilename(rx.name);
+    final path = '${dir.path}${Platform.pathSeparator}$safeName';
+    final file = File(path);
+    await file.writeAsBytes(rx.builder.takeBytes(), flush: true);
+    return file.path;
+  }
+
+  // empêche les noms de fichier d'écraser un chemin (ex: "../etc/passwd").
+  String _sanitizeFilename(String name) {
+    final cleaned = name.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+    return cleaned.isEmpty ? 'file.bin' : cleaned;
   }
 
   // -------- Config ICE depuis .env --------
@@ -300,5 +440,14 @@ class P2PService {
     return {'iceServers': servers};
   }
 
-  void log(String msg) => print('[P2P] $msg');
+  void log(String msg) => debugPrint('[P2P] $msg');
+}
+
+// petit conteneur pour l'état de réception côté (B).
+class _IncomingFile {
+  final String name;
+  final int expectedSize;
+  final BytesBuilder builder = BytesBuilder(copy: false);
+
+  _IncomingFile({required this.name, required this.expectedSize});
 }

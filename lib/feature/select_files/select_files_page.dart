@@ -151,7 +151,7 @@ class _SelectFilesPageState extends State<SelectFilesPage> {
                   SendButton(
                     isEnabled: state.hasSelectedFiles && !state.isSending,
                     onPressed: state.hasSelectedFiles && !state.isSending
-                        ? _controller.sendHello
+                        ? _controller.sendSelectedFiles
                         : null,
                   ),
                 ],

@@ -19,10 +19,20 @@ class SelectFilesController extends ValueNotifier<SelectFilesState> {
   SelectFilesController({required String deviceName, required this.deviceUuid})
     : super(SelectFilesState(deviceName: deviceName));
 
-  Future<void> sendHello() async {
+  Future<void> sendSelectedFiles() async {
+    final selected = value.selectedFiles;
+    if (selected.isEmpty) return;
+
+    // KISS: on envoie uniquement le premier fichier sélectionné.
+    final filePath = selected.first.path;
+    if (filePath == null || filePath.isEmpty) {
+      value = value.copyWith(errorMessage: 'Chemin du fichier introuvable.');
+      return;
+    }
+
     value = value.copyWith(isSending: true, errorMessage: null);
     try {
-      await _p2p.connectToDevice(deviceUuid);
+      await _p2p.connectToDevice(deviceUuid, filePath: filePath);
     } catch (e) {
       value = value.copyWith(errorMessage: 'Échec de l\'envoi P2P: $e');
     } finally {

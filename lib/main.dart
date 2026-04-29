@@ -33,8 +33,8 @@ Future<void> main() async {
     print("Erreur enregistrement device: $e");
   }
 
-  P2PService().messages.listen((text) {
-    print('[P2P] message reçu: $text');
+  P2PService().receivedFiles.listen((path) {
+    print('[P2P] fichier reçu: $path');
   });
   P2PService().startListening(); // ouvre la connexion SSE /p2p/events/$myUuid
 
