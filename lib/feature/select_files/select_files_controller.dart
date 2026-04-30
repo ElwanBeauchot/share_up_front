@@ -3,22 +3,30 @@ import 'dart:io'; // verifie si le fichier existe
 
 import 'package:flutter/foundation.dart';
 import 'package:file_picker/file_picker.dart' as file_picker;
+import 'package:image_picker/image_picker.dart' as image_picker;
+import 'package:path_provider/path_provider.dart';
+import 'package:photo_manager/photo_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // sauvergarde fichier localement
 import 'select_files_state.dart';
 
 // CONSTANTES
-const _recentFilesStorageKey = 'select_files_recent_files'; // Nom ou on sauvergarde les fichiers localement
+const _recentFilesStorageKey =
+    'select_files_recent_files'; // Nom ou on sauvergarde les fichiers localement
 const _maxRecentFiles = 10; // limite de fichier sauvergarder en local
+const _mediaStorageFolderName = 'recent_media_files'; 
 
 class SelectFilesController extends ValueNotifier<SelectFilesState> {
-  SelectFilesController({required String deviceName}) // Besoin nom de l'appareil cible pour le titre de la page
-    : super(SelectFilesState(deviceName: deviceName));
+  SelectFilesController({
+    required String deviceName,
+  }) // Besoin nom de l'appareil cible pour le titre de la page
+  : super(SelectFilesState(deviceName: deviceName));
 
   Future<void> loadFiles() async {
     value = value.copyWith(isLoading: true, errorMessage: null);
 
     try {
-      final recentFiles = await _loadRecentFiles(); // Essaie de récuperer les fichiers sauvergarder localement
+      final recentFiles =
+          await _loadRecentFiles(); // Essaie de récuperer les fichiers sauvergarder localement
 
       value = value.copyWith(
         isLoading: false,
@@ -42,11 +50,11 @@ class SelectFilesController extends ValueNotifier<SelectFilesState> {
         withData: false,
       );
 
-      if (result == null || result.files.isEmpty) return;
+      if (result == null || result.files.isEmpty) return; 
 
       final pickedFiles = result.files
           .map(
-            (file) => FileItemModel(
+            (file) => FileItemModel( // transforme en fileItemModel p
               name: file.name,
               size: _formatFileSize(file.size),
               type: _fileTypeFromExtension(file.extension),
@@ -56,14 +64,7 @@ class SelectFilesController extends ValueNotifier<SelectFilesState> {
           )
           .toList();
 
-      final mergedFiles = _mergeFiles(value.files, pickedFiles);
-      await _saveRecentFiles(mergedFiles);
-
-      value = value.copyWith(
-        files: mergedFiles,
-        errorMessage: null,
-        animationSeed: value.animationSeed + 1,
-      );
+      await _addPickedFiles(pickedFiles);
     } catch (_) {
       value = value.copyWith(
         errorMessage: 'Impossible d\'ajouter les fichiers selectionnes.',
@@ -71,22 +72,143 @@ class SelectFilesController extends ValueNotifier<SelectFilesState> {
     }
   }
 
-  void toggleFileSelection(int index) {
+  Future<void> addMediaAsset(AssetEntity asset) async { 
+    await addMediaAssets([asset]);
+  }
+
+  Future<void> addMediaAssets(List<AssetEntity> assets) async {
+    try {
+      if (assets.isEmpty) return;
+
+      final pickedFiles = <FileItemModel>[];
+
+      // On regarde chaque asset + leurs chemin et on les stock dans le dossier local 
+      for (final asset in assets) { 
+        final mediaFile = await asset.file;
+        if (mediaFile == null) continue;
+
+        final title = await asset.titleAsync;
+        final savedFile = await _copyMediaToAppStorage(
+          mediaFile,
+          fileName: title.isNotEmpty
+              ? title
+              : _fileNameFromPath(mediaFile.path),
+          stableId: asset.id,
+        );
+        final fileName = _fileNameFromPath(savedFile.path);
+
+        pickedFiles.add(
+          FileItemModel(
+            name: fileName,
+            size: _formatFileSize(await savedFile.length()),
+            type: asset.type == AssetType.video
+                ? FileType.video
+                : FileType.image,
+            path: savedFile.path,
+            isSelected: true,
+          ),
+        );
+      }
+
+      await _addPickedFiles(pickedFiles);
+    } catch (_) {
+      value = value.copyWith(
+        errorMessage: 'Impossible d\'ajouter les photos ou videos.',
+      );
+    }
+  }
+
+  Future<void> addMediaFilesFromAlbum() async {
+    try {
+      final picker = image_picker.ImagePicker(); 
+      final result = await picker.pickMultipleMedia(); 
+
+      if (result.isEmpty) return;
+
+      final pickedFiles = <FileItemModel>[];
+
+// On regarde chaque asset + leurs chemin et on les stock dans le dossier local 
+      for (final media in result) {
+        final sourceFile = File(media.path);
+        final savedFile = await _copyMediaToAppStorage(sourceFile,
+          fileName: media.name.isNotEmpty
+              ? media.name
+              : _fileNameFromPath(sourceFile.path),
+        );
+        final fileName = _fileNameFromPath(savedFile.path);
+
+        pickedFiles.add(
+          FileItemModel(
+            name: fileName,
+            size: _formatFileSize(await savedFile.length()),
+            type: _fileTypeFromExtension(_extensionFromName(fileName)),
+            path: savedFile.path,
+            isSelected: true,
+          ),
+        );
+      }
+
+      await _addPickedFiles(pickedFiles);
+    } catch (_) {
+      value = value.copyWith(
+        errorMessage: 'Impossible d\'ajouter les photos ou videos.',
+      );
+    }
+  }
+
+// On donne l'index d'un fichier puis on l'inverse dans une nouvelle liste 
+  void toggleFileSelection(int index) { 
     final updatedFiles = List<FileItemModel>.from(value.files);
-    final file = updatedFiles[index];
+    final file = updatedFiles[index]; 
     updatedFiles[index] = file.copyWith(isSelected: !file.isSelected);
 
     value = value.copyWith(files: updatedFiles);
   }
+
+ 
+  Future<void> _addPickedFiles(List<FileItemModel> pickedFiles) async {
+    final mergedFiles = _mergeFiles(value.files, pickedFiles);
+    await _saveRecentFiles(mergedFiles);
+
+    value = value.copyWith(
+      files: mergedFiles,
+      errorMessage: null,
+      animationSeed: value.animationSeed + 1,
+    );
+  }
+}
+
+
+// Stocke les fichiers media pour shared preferences pour y acceder plus tard 
+Future<File> _copyMediaToAppStorage( File sourceFile, { required String fileName,String? stableId,}) async {
+  final appDirectory = await getApplicationDocumentsDirectory();
+  final mediaDirectory = Directory(
+    '${appDirectory.path}/$_mediaStorageFolderName',
+  );
+
+  if (!mediaDirectory.existsSync()) {
+    mediaDirectory.createSync(recursive: true);
+  }
+
+  final safeFileName = _safeFileName(fileName); // Nom du fichier 
+  final safeStableId = stableId == null ? null : _safeFileName(stableId); // Récuperation d'un stable id pour le rajouter dans le name 
+  final destinationName = safeStableId == null
+      ? '${DateTime.now().microsecondsSinceEpoch}_$safeFileName'
+      : '${safeStableId}_$safeFileName';
+
+  return sourceFile.copy('${mediaDirectory.path}/$destinationName');
 }
 
 Future<List<FileItemModel>> _loadRecentFiles() async {
-  final prefs = await SharedPreferences.getInstance(); // Récupère les fichiers sauvergarder localement
-  final storedFiles = prefs.getStringList(_recentFilesStorageKey) ?? const []; // Si aucun fichier n'est sauvergarder = liste vide 
-// On remet en fileItemModel et on verifie qu'ils sont encore present dans le telephone avec le path  
+  final prefs =
+      await SharedPreferences.getInstance(); // Récupère les fichiers sauvergarder localement
+  final storedFiles =
+      prefs.getStringList(_recentFilesStorageKey) ??
+      const []; // Si aucun fichier n'est sauvergarder = liste vide
+  // On remet en fileItemModel et on verifie qu'ils sont encore present dans le telephone avec le path
   final files = storedFiles
-      .map(_fileFromJson) 
-      .whereType<FileItemModel>() 
+      .map(_fileFromJson)
+      .whereType<FileItemModel>()
       .where(_fileStillExists)
       .map((file) => file.copyWith(isSelected: false))
       .take(_maxRecentFiles)
@@ -97,8 +219,9 @@ Future<List<FileItemModel>> _loadRecentFiles() async {
 }
 
 Future<void> _saveRecentFiles(List<FileItemModel> files) async {
-  final prefs = await SharedPreferences.getInstance(); // Sauvergarde les fichiers localement
-  final filesToStore = files 
+  final prefs =
+      await SharedPreferences.getInstance(); // Sauvergarde les fichiers localement
+  final filesToStore = files
       .where((file) => file.path != null)
       .take(_maxRecentFiles)
       .map(_fileToJson)
@@ -107,13 +230,11 @@ Future<void> _saveRecentFiles(List<FileItemModel> files) async {
   await prefs.setStringList(_recentFilesStorageKey, filesToStore);
 }
 
-List<FileItemModel> _mergeFiles(
-  List<FileItemModel> currentFiles,
-  List<FileItemModel> pickedFiles,
-) {
+List<FileItemModel> _mergeFiles(List<FileItemModel> currentFiles,List<FileItemModel> pickedFiles,) {
   final mergedFiles = List<FileItemModel>.from(currentFiles);
 
-  for (final pickedFile in pickedFiles) { // boucle pour chaque fichier selectionné pour verifier s'il existe déjà dans les fichiers récents
+ // boucle pour chaque fichier selectionné pour verifier s'il existe déjà dans les fichiers récents
+  for (final pickedFile in pickedFiles) {
     final existingIndex = mergedFiles.indexWhere(
       (file) => _isSameFile(file, pickedFile),
     );
@@ -122,14 +243,14 @@ List<FileItemModel> _mergeFiles(
       mergedFiles.insert(0, pickedFile);
     } else {
       final existingFile = mergedFiles.removeAt(existingIndex);
-      mergedFiles.insert(
-        0,
-        pickedFile.copyWith(isSelected: existingFile.isSelected),
+      mergedFiles.insert(0,pickedFile.copyWith(isSelected: existingFile.isSelected),
       );
     }
   }
 
-  return mergedFiles.take(_maxRecentFiles).toList(); // On limite la liste à 10 fichiers récents
+  return mergedFiles
+      .take(_maxRecentFiles) // On limite la liste à 10 fichiers récents
+      .toList(); 
 }
 
 bool _isSameFile(FileItemModel firstFile, FileItemModel secondFile) {
@@ -137,10 +258,10 @@ bool _isSameFile(FileItemModel firstFile, FileItemModel secondFile) {
   final secondPath = secondFile.path;
 
   if (firstPath != null && secondPath != null) {
-    return firstPath == secondPath;
+    if (firstPath == secondPath) return true;
   }
 
-  return firstFile.name == secondFile.name;
+  return firstFile.name == secondFile.name && firstFile.size == secondFile.size;
 }
 
 bool _fileStillExists(FileItemModel file) {
@@ -148,6 +269,24 @@ bool _fileStillExists(FileItemModel file) {
   if (path == null || path.isEmpty) return false;
 
   return File(path).existsSync();
+}
+
+String _fileNameFromPath(String path) { // Récupère le nom du fichier à partir de son chemin
+  return path.split(Platform.pathSeparator).last;
+}
+
+String? _extensionFromName(String name) { // Récupère l'extension du fichier à partir de son nom
+  final dotIndex = name.lastIndexOf('.');
+  if (dotIndex == -1 || dotIndex == name.length - 1) return null;
+
+  return name.substring(dotIndex + 1);
+}
+
+String _safeFileName(String fileName) { // Récupère le nom du fichier à partir de son chemin
+  final cleanName = fileName.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_').trim();
+  if (cleanName.isNotEmpty) return cleanName;
+
+  return 'media_${DateTime.now().millisecondsSinceEpoch}';
 }
 
 String _fileToJson(FileItemModel file) {

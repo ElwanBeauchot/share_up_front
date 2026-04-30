@@ -3,6 +3,7 @@ import 'package:share_up_front/feature/select_files/select_files_controller.dart
 import 'package:share_up_front/feature/select_files/select_files_state.dart';
 import 'package:share_up_front/widgets/slide_fade_in.dart';
 import 'widgetsSelectFiles/add_files_button.dart';
+import 'widgetsSelectFiles/attachment_picker_sheet.dart'; // 
 import 'widgetsSelectFiles/file_card.dart';
 import 'widgetsSelectFiles/selected_files_summary.dart';
 import 'widgetsSelectFiles/select_files_header.dart';
@@ -134,7 +135,7 @@ class _SelectFilesPageState extends State<SelectFilesPage> {
 
                   AddFilesButton(
                     onPressed: () {
-                      _controller.addFiles();
+                      _openAttachmentPicker();
                     },
                   ),
 
@@ -163,5 +164,32 @@ class _SelectFilesPageState extends State<SelectFilesPage> {
 
   String _fileAnimationId(FileItemModel file) {
     return file.path ?? file.name;
+  }
+
+  Future<void> _openAttachmentPicker() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        return AttachmentPickerSheet(
+          onMediaSelected: (assets) async { // Permet de sélections plusieurs medias dans les fichiers recement 
+            Navigator.of(sheetContext).pop();
+            await _controller.addMediaAssets(assets);
+          },
+          onFilesPressed: () async {
+            Navigator.of(sheetContext).pop();
+            await _controller.addFiles(); // Permet d'acceder au fichiers 
+          },
+          onAlbumPressed: () async {
+            Navigator.of(sheetContext).pop();
+            await _controller.addMediaFilesFromAlbum(); // Permet d'acceder a la phototeques
+          },
+        );
+      },
+    );
   }
 }
