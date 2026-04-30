@@ -279,11 +279,8 @@ List<FileItemModel> _mergeFiles(
     if (existingIndex == -1) {
       mergedFiles.insert(0, pickedFile);
     } else {
-      final existingFile = mergedFiles.removeAt(existingIndex);
-      mergedFiles.insert(
-        0,
-        pickedFile.copyWith(isSelected: existingFile.isSelected),
-      );
+      mergedFiles.removeAt(existingIndex);
+      mergedFiles.insert(0, pickedFile.copyWith(isSelected: true));
     }
   }
 
