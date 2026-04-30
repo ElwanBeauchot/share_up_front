@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:flutter_file_dialog/flutter_file_dialog.dart';
 import 'api_service.dart';
 import 'device_service.dart';
 import 'signaling_client.dart';
@@ -96,9 +97,8 @@ class P2PService {
     }
   }
 
-  // ferme proprement la session P2P et reset tous les flags pour pouvoir réutiliser le service
+  // ferme proprement la session P2P et reset tous les flags pour pouvoir réutiliser le service.
   Future<void> disconnect() async {
-    signaling?.stop(); // ferme la SSE (plus besoin pour cette session)
     await dataChannel?.close(); // ferme le canal de données P2P
     await peerConnection?.close(); // ferme la PeerConnection WebRTC
     dataChannel = null;
@@ -252,9 +252,7 @@ class P2PService {
     ch.onDataChannelState = (s) {
       log('data channel: $s');
       if (s == RTCDataChannelState.RTCDataChannelOpen) {
-        // canal ouvert: la SSE n'est plus utile, on libère
         status.value = P2PStatus.connected;
-        signaling?.stop();
         if (isCaller && pendingFilePath != null) {
           // (A) envoie automatiquement le fichier mémorisé
           // ignore: discarded_futures
@@ -402,14 +400,43 @@ class P2PService {
     }
   }
 
-  // écrit le fichier reçu dans le dossier documents de l'app.
+  // écrit le fichier reçu dans le cache temp puis ouvre le picker système
+  // "Save As" pour que l'utilisateur choisisse où le ranger sur son téléphone.
+  // Cross-platform iOS/Android, pas de permission, sémantique "j'enregistre"
+  // (et non "je re-partage").
   Future<String> _saveIncoming(_IncomingFile rx) async {
-    final dir = await getApplicationDocumentsDirectory();
+    final dir = await getTemporaryDirectory();
     final safeName = _sanitizeFilename(rx.name);
     final path = '${dir.path}${Platform.pathSeparator}$safeName';
-    final file = File(path);
-    await file.writeAsBytes(rx.builder.takeBytes(), flush: true);
-    return file.path;
+    final tmpFile = File(path);
+    await tmpFile.writeAsBytes(rx.builder.takeBytes(), flush: true);
+
+    // ouvre la boîte de dialogue système "Enregistrer sous…"
+    try {
+      final saved = await FlutterFileDialog.saveFile(
+        params: SaveFileDialogParams(
+          sourceFilePath: tmpFile.path,
+          fileName: safeName,
+        ),
+      );
+      if (saved != null && saved.isNotEmpty) {
+        // copie publiée dans la destination choisie par l'utilisateur:
+        // on peut nettoyer la copie temp.
+        try {
+          await tmpFile.delete();
+        } catch (_) {}
+        return saved;
+      }
+      // utilisateur a annulé -> on garde la copie en cache pour fallback.
+      log(
+        'save annulé par l\'utilisateur, fichier dans cache: ${tmpFile.path}',
+      );
+    } catch (e) {
+      // saveFile peut échouer dans de rares cas; le fichier est déjà en cache.
+      log('saveFile échec: $e');
+    }
+
+    return tmpFile.path;
   }
 
   // empêche les noms de fichier d'écraser un chemin (ex: "../etc/passwd").

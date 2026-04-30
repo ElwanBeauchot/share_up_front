@@ -7,7 +7,7 @@ class ApiService {
   static const Duration _timeout = Duration(seconds: 20);
 
   //String apiUrl = dotenv.env['API_URL']!;
-  String apiUrl = "http://192.168.1.27:8080";
+  String apiUrl = "http://10.84.184.164:8080";
   String apiKey = dotenv.env['API_KEY']!;
 
   Future<Map<String, dynamic>> post(
