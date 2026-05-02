@@ -1,58 +1,39 @@
-import 'dart:convert'; // Transforme les données en JSON et inversement
-import 'dart:io'; // verifie si le fichier existe
+import 'dart:convert'; // Transforme les donnees en JSON et inversement
+import 'dart:io'; // Verifie si le fichier existe et permet de copier un fichier
 
-import 'package:flutter/foundation.dart';
 import 'package:file_picker/file_picker.dart' as file_picker;
+import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart' as image_picker;
 import 'package:path_provider/path_provider.dart';
 import 'package:photo_manager/photo_manager.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // sauvergarde fichier localement
+import 'package:shared_preferences/shared_preferences.dart';
+
 import '../../services/p2p_service.dart';
 import 'select_files_state.dart';
 
 // CONSTANTES
-const _recentFilesStorageKey =
-    'select_files_recent_files'; // Nom ou on sauvergarde les fichiers localement
-const _maxRecentFiles = 10; // limite de fichier sauvergarder en local
+const _recentFilesStorageKey = 'select_files_recent_files';
+const _maxRecentFiles = 10;
 const _mediaStorageFolderName = 'recent_media_files';
 
 class SelectFilesController extends ValueNotifier<SelectFilesState> {
   final String deviceUuid;
   final P2PService _p2p = P2PService();
 
-  SelectFilesController({
-    required String deviceName,
-    required this.deviceUuid,
-  }) // Besoin nom de l'appareil cible pour le titre de la page
-  : super(SelectFilesState(deviceName: deviceName));
+  SelectFilesController({required String deviceName, required this.deviceUuid})
+    // Besoin du nom de l'appareil cible pour le titre de la page.
+    : super(SelectFilesState(deviceName: deviceName));
 
-  Future<void> sendSelectedFiles() async {
-    final selected = value.selectedFiles;
-    if (selected.isEmpty) return;
-
-    // KISS: on envoie uniquement le premier fichier sélectionné.
-    final filePath = selected.first.path;
-    if (filePath == null || filePath.isEmpty) {
-      value = value.copyWith(errorMessage: 'Chemin du fichier introuvable.');
-      return;
-    }
-
-    value = value.copyWith(isSending: true, errorMessage: null);
-    try {
-      await _p2p.connectToDevice(deviceUuid, filePath: filePath);
-    } catch (e) {
-      value = value.copyWith(errorMessage: 'Échec de l\'envoi P2P: $e');
-    } finally {
-      value = value.copyWith(isSending: false);
-    }
-  }
+  //////////////////////////////
+  // CHARGEMENT DES FICHIERS RECENTS
+  //////////////////////////////
 
   Future<void> loadFiles() async {
     value = value.copyWith(isLoading: true, errorMessage: null);
 
     try {
-      final recentFiles =
-          await _loadRecentFiles(); // Essaie de récuperer les fichiers sauvergarder localement
+      // Recupere les fichiers sauvegardes localement puis retire ceux qui n'existent plus.
+      final recentFiles = await _loadRecentFiles();
 
       value = value.copyWith(
         isLoading: false,
@@ -68,6 +49,10 @@ class SelectFilesController extends ValueNotifier<SelectFilesState> {
     }
   }
 
+  //////////////////////////////
+  // AJOUT DE FICHIERS / MEDIAS
+  //////////////////////////////
+
   Future<void> addFiles() async {
     try {
       final result = await file_picker.FilePicker.platform.pickFiles(
@@ -80,8 +65,8 @@ class SelectFilesController extends ValueNotifier<SelectFilesState> {
 
       final pickedFiles = result.files
           .map(
+            // Transforme le format du package file_picker en FileItemModel pour notre UI.
             (file) => FileItemModel(
-              // transforme en fileItemModel p
               name: file.name,
               size: _formatFileSize(file.size),
               type: _fileTypeFromExtension(file.extension),
@@ -109,7 +94,7 @@ class SelectFilesController extends ValueNotifier<SelectFilesState> {
 
       final pickedFiles = <FileItemModel>[];
 
-      // On regarde chaque asset + leurs chemin et on les stock dans le dossier local
+      // Les medias recents viennent de photo_manager, donc on les copie dans le dossier local.
       for (final asset in assets) {
         final mediaFile = await asset.file;
         if (mediaFile == null) continue;
@@ -154,7 +139,7 @@ class SelectFilesController extends ValueNotifier<SelectFilesState> {
 
       final pickedFiles = <FileItemModel>[];
 
-      // On regarde chaque asset + leurs chemin et on les stock dans le dossier local
+      // Les medias de l'album complet viennent de image_picker, on les copie aussi localement.
       for (final media in result) {
         final sourceFile = File(media.path);
         final savedFile = await _copyMediaToAppStorage(
@@ -184,15 +169,6 @@ class SelectFilesController extends ValueNotifier<SelectFilesState> {
     }
   }
 
-  // On donne l'index d'un fichier puis on l'inverse dans une nouvelle liste
-  void toggleFileSelection(int index) {
-    final updatedFiles = List<FileItemModel>.from(value.files);
-    final file = updatedFiles[index];
-    updatedFiles[index] = file.copyWith(isSelected: !file.isSelected);
-
-    value = value.copyWith(files: updatedFiles);
-  }
-
   Future<void> _addPickedFiles(List<FileItemModel> pickedFiles) async {
     final mergedFiles = _mergeFiles(value.files, pickedFiles);
     await _saveRecentFiles(mergedFiles);
@@ -203,9 +179,46 @@ class SelectFilesController extends ValueNotifier<SelectFilesState> {
       animationSeed: value.animationSeed + 1,
     );
   }
+
+  //////////////////////////////
+  // SELECTION ET ENVOI
+  //////////////////////////////
+
+
+  void toggleFileSelection(int index) {
+    final updatedFiles = List<FileItemModel>.from(value.files);
+    final file = updatedFiles[index];
+    updatedFiles[index] = file.copyWith(isSelected: !file.isSelected);
+
+    value = value.copyWith(files: updatedFiles);
+  }
+
+  Future<void> sendSelectedFiles() async {
+    final selected = value.selectedFiles;
+    if (selected.isEmpty) return;
+
+    final filePath = selected.first.path;
+    if (filePath == null || filePath.isEmpty) {
+      value = value.copyWith(errorMessage: 'Chemin du fichier introuvable.');
+      return;
+    }
+
+    value = value.copyWith(isSending: true, errorMessage: null);
+    try {
+      await _p2p.connectToDevice(deviceUuid, filePath: filePath);
+    } catch (e) {
+      value = value.copyWith(errorMessage: 'Echec de l\'envoi P2P: $e');
+    } finally {
+      value = value.copyWith(isSending: false);
+    }
+  }
 }
 
-// Stocke les fichiers media pour shared preferences pour y acceder plus tard
+//////////////////////////////
+// COPIE LOCALE DES MEDIAS
+//////////////////////////////
+
+// Stocke les photos/videos dans le dossier local de l'app pour y acceder plus tard.
 Future<File> _copyMediaToAppStorage(
   File sourceFile, {
   required String fileName,
@@ -220,12 +233,9 @@ Future<File> _copyMediaToAppStorage(
     mediaDirectory.createSync(recursive: true);
   }
 
-  final safeFileName = _safeFileName(fileName); // Nom du fichier
-  final safeStableId = stableId == null
-      ? null
-      : _safeFileName(
-          stableId,
-        ); // Récuperation d'un stable id pour le rajouter dans le name
+  // Nettoie le nom original et l'identifiant stable pour construire un nom de fichier valide.
+  final safeFileName = _safeFileName(fileName);
+  final safeStableId = stableId == null ? null : _safeFileName(stableId);
   final destinationName = safeStableId == null
       ? '${DateTime.now().microsecondsSinceEpoch}_$safeFileName'
       : '${safeStableId}_$safeFileName';
@@ -233,16 +243,40 @@ Future<File> _copyMediaToAppStorage(
   return sourceFile.copy('${mediaDirectory.path}/$destinationName');
 }
 
+String _fileNameFromPath(String path) {
+  // Recupere le nom du fichier a partir de son chemin complet.
+  return path.split(Platform.pathSeparator).last;
+}
+
+String? _extensionFromName(String name) {
+  // Recupere l'extension du fichier a partir de son nom.
+  final dotIndex = name.lastIndexOf('.');
+  if (dotIndex == -1 || dotIndex == name.length - 1) return null;
+
+  return name.substring(dotIndex + 1);
+}
+
+String _safeFileName(String fileName) {
+  // Remplace les caracteres interdits dans un nom de fichier.
+  final cleanName = fileName.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_').trim();
+  if (cleanName.isNotEmpty) return cleanName;
+
+  return 'media_${DateTime.now().millisecondsSinceEpoch}';
+}
+
+//////////////////////////////
+// HISTORIQUE LOCAL
+//////////////////////////////
+
 Future<List<FileItemModel>> _loadRecentFiles() async {
-  final prefs =
-      await SharedPreferences.getInstance(); // Récupère les fichiers sauvergarder localement
-  final storedFiles =
-      prefs.getStringList(_recentFilesStorageKey) ??
-      const []; // Si aucun fichier n'est sauvergarder = liste vide
-  // On remet en fileItemModel et on verifie qu'ils sont encore present dans le telephone avec le path
+  // Recupere les metadonnees sauvegardees localement.
+  final prefs = await SharedPreferences.getInstance();
+  final storedFiles = prefs.getStringList(_recentFilesStorageKey) ?? const [];
+
   final files = storedFiles
       .map(_fileFromJson)
       .whereType<FileItemModel>()
+      // Retire les fichiers supprimes ou inaccessibles du telephone.
       .where(_fileStillExists)
       .map((file) => file.copyWith(isSelected: false))
       .take(_maxRecentFiles)
@@ -253,8 +287,8 @@ Future<List<FileItemModel>> _loadRecentFiles() async {
 }
 
 Future<void> _saveRecentFiles(List<FileItemModel> files) async {
-  final prefs =
-      await SharedPreferences.getInstance(); // Sauvergarde les fichiers localement
+  // Sauvegarde seulement les metadonnees, pas le contenu des fichiers.
+  final prefs = await SharedPreferences.getInstance();
   final filesToStore = files
       .where((file) => file.path != null)
       .take(_maxRecentFiles)
@@ -264,6 +298,17 @@ Future<void> _saveRecentFiles(List<FileItemModel> files) async {
   await prefs.setStringList(_recentFilesStorageKey, filesToStore);
 }
 
+bool _fileStillExists(FileItemModel file) {
+  final path = file.path;
+  if (path == null || path.isEmpty) return false;
+
+  return File(path).existsSync();
+}
+
+//////////////////////////////
+// FUSION ET DOUBLONS
+//////////////////////////////
+
 List<FileItemModel> _mergeFiles(
   List<FileItemModel> currentFiles,
   List<FileItemModel> pickedFiles,
@@ -271,7 +316,7 @@ List<FileItemModel> _mergeFiles(
   final mergedFiles = List<FileItemModel>.from(currentFiles);
 
   for (final pickedFile in pickedFiles) {
-    // boucle pour chaque fichier selectionné pour verifier s'il existe déjà dans les fichiers récents
+    // Verifie si le fichier selectionne existe deja dans les fichiers recents.
     final existingIndex = mergedFiles.indexWhere(
       (file) => _isSameFile(file, pickedFile),
     );
@@ -284,12 +329,11 @@ List<FileItemModel> _mergeFiles(
     }
   }
 
-  return mergedFiles
-      .take(_maxRecentFiles)
-      .toList(); // On limite la liste à 10 fichiers récents
+  return mergedFiles.take(_maxRecentFiles).toList();
 }
 
 bool _isSameFile(FileItemModel firstFile, FileItemModel secondFile) {
+  // Priorite au path, car c'est l'identifiant le plus fiable pour un fichier local.
   final firstPath = firstFile.path;
   final secondPath = secondFile.path;
 
@@ -300,33 +344,9 @@ bool _isSameFile(FileItemModel firstFile, FileItemModel secondFile) {
   return firstFile.name == secondFile.name && firstFile.size == secondFile.size;
 }
 
-bool _fileStillExists(FileItemModel file) {
-  final path = file.path;
-  if (path == null || path.isEmpty) return false;
-
-  return File(path).existsSync();
-}
-
-String _fileNameFromPath(String path) {
-  // Récupère le nom du fichier à partir de son chemin
-  return path.split(Platform.pathSeparator).last;
-}
-
-String? _extensionFromName(String name) {
-  // Récupère l'extension du fichier à partir de son nom
-  final dotIndex = name.lastIndexOf('.');
-  if (dotIndex == -1 || dotIndex == name.length - 1) return null;
-
-  return name.substring(dotIndex + 1);
-}
-
-String _safeFileName(String fileName) {
-  // Récupère le nom du fichier à partir de son chemin
-  final cleanName = fileName.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_').trim();
-  if (cleanName.isNotEmpty) return cleanName;
-
-  return 'media_${DateTime.now().millisecondsSinceEpoch}';
-}
+//////////////////////////////
+// JSON
+//////////////////////////////
 
 String _fileToJson(FileItemModel file) {
   return jsonEncode({
@@ -359,6 +379,10 @@ FileItemModel? _fileFromJson(String source) {
     return null;
   }
 }
+
+//////////////////////////////
+// FORMATAGE ET TYPES
+//////////////////////////////
 
 FileType _fileTypeFromName(Object? typeName) {
   if (typeName is! String) return FileType.document;
