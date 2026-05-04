@@ -22,6 +22,8 @@ class ScanController extends ValueNotifier<ScanState> {
     try {
       final position = await deviceService.getDevicePosition();
       final myUuid = await deviceService.getDeviceUuid();
+      final deviceInfo = await deviceService.getDeviceInfo();
+      await deviceService.sendDeviceData(position, myUuid, deviceInfo); // on update la position de notre device
       final result = await deviceService.getNearbyDevices(position, myUuid);
 
       if (result.isNotEmpty){
