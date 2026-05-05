@@ -62,15 +62,23 @@ class SelectedFilesSummary extends StatelessWidget {
               maxHeight: _selectedFilesListMaxHeight,
             ),
             child: SingleChildScrollView(
-              child: Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: files.map((file) {
-                  return _SelectedFileChip(
-                    label: _truncateFileName(file.name),
-                    onRemove: () => onRemove(file),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  const spacing = 10.0;
+                  final chipWidth = (constraints.maxWidth - spacing) / 2;
+
+                  return Wrap(
+                    spacing: spacing,
+                    runSpacing: 10,
+                    children: files.map((file) {
+                      return _SelectedFileChip(
+                        width: chipWidth,
+                        label: _truncateFileName(file.name),
+                        onRemove: () => onRemove(file),
+                      );
+                    }).toList(),
                   );
-                }).toList(),
+                },
               ),
             ),
           ),
@@ -81,36 +89,47 @@ class SelectedFilesSummary extends StatelessWidget {
 }
 
 class _SelectedFileChip extends StatelessWidget {
+  final double width;
   final String label;
   final VoidCallback onRemove;
 
-  const _SelectedFileChip({required this.label, required this.onRemove});
+  const _SelectedFileChip({
+    required this.width,
+    required this.label,
+    required this.onRemove,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
+    return SizedBox(
+      width: width,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          GestureDetector(
-            onTap: onRemove,
-            child: const Icon(Icons.close, size: 14, color: Colors.white),
-          ),
-        ],
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: onRemove,
+              child: const Icon(Icons.close, size: 14, color: Colors.white),
+            ),
+          ],
+        ),
       ),
     );
   }
