@@ -237,27 +237,23 @@ class _SelectCircle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 22,
-      height: 22,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 140),
+      width: 24,
+      height: 24,
       decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.white,
+        color: isSelected ? AppColors.indigo : Colors.white,
+        borderRadius: BorderRadius.circular(7),
         border: Border.all(
           color: isSelected ? AppColors.indigo : const Color(0xFFD1D5DB),
           width: 2,
         ),
       ),
       child: isSelected
-          ? Center(
-              child: Container(
-                width: 9,
-                height: 9,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.indigo,
-                ),
-              ),
+          ? const Icon(
+              Icons.check_rounded,
+              size: 17,
+              color: Colors.white,
             )
           : null,
     );
