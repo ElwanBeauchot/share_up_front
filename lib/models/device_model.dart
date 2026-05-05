@@ -31,16 +31,19 @@ class DeviceModel {
 }
 
 class DeviceScanModel {
+  final String uuid;
   final String name;
   final String os;
 
   const DeviceScanModel({
+    this.uuid = '',
     required this.name,
     required this.os,
   });
 
   factory DeviceScanModel.fromJson(Map<String, dynamic> json) {
     return DeviceScanModel(
+      uuid: json['uuid'] ?? '',
       name: json['device_name'] ?? '',
       os: json['os'] ?? '',
     );

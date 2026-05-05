@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 class SlideFadeIn extends StatefulWidget {
   final Widget child;
   final Duration delay;
+  final bool animate;
 
   const SlideFadeIn({
     super.key,
     required this.child,
     required this.delay,
+    this.animate = true,
   });
 
   @override
@@ -15,11 +17,14 @@ class SlideFadeIn extends StatefulWidget {
 }
 
 class _SlideFadeInState extends State<SlideFadeIn> {
-  bool _show = false;
+  late bool _show;
 
   @override
   void initState() {
     super.initState();
+    _show = !widget.animate;
+
+    if (!widget.animate) return;
 
     Future.delayed(widget.delay, () {
       if (!mounted) return;

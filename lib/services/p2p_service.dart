@@ -1,144 +1,218 @@
-import 'package:flutter_webrtc/flutter_webrtc.dart';
+// Orchestrateur P2P (singleton): API publique consommée par l'UI et l'app.
+// État de session + transferState observable. Délègue aux mixins
+// P2PSignaling / P2PWebRTC / P2PTransfer pour rester simple à lire.
+
 import 'dart:async';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'api_service.dart';
 import 'device_service.dart';
+import '../feature/p2p/file_receiver.dart';
+import '../feature/p2p/file_sender.dart';
+import '../feature/p2p/ice_config.dart';
+import '../feature/p2p/p2p_phase.dart';
+import 'signaling_client.dart';
 
-class P2PService {
-  RTCPeerConnection? _peerConnection;
-  RTCDataChannel? _dataChannel;
-  final ApiService _api = ApiService();
-  late final DeviceService _deviceService = DeviceService(_api);
-  Timer? _pollingTimer;
-  String? _remoteDeviceUuid;
-  String? _myUuid;
-  Function(String)? onMessageReceived;
+export '../feature/p2p/p2p_phase.dart';
 
+part '../feature/p2p/p2p_signaling.dart';
+part '../feature/p2p/p2p_transfer.dart';
+part '../feature/p2p/p2p_webrtc.dart';
+
+// Throttle des updates de progression vers la UI (~8 fps suffisent visuellement).
+const Duration _progressThrottle = Duration(milliseconds: 120);
+// Auto-dismiss des phases terminales (success/rejected/failed).
+const Duration _successDelay = Duration(milliseconds: 800);
+const Duration _rejectedDelay = Duration(seconds: 3);
+
+// -------- État partagé entre les mixins --------
+//
+// Tous les champs et utilitaires vivent ici pour que les mixins puissent
+// y accéder sans héritage compliqué. Seul P2PService est instancié.
+abstract class _P2PCore {
+  final ApiService api = ApiService();
+  late final DeviceService deviceService = DeviceService(api);
+
+  SignalingClient? signaling;
+  StreamSubscription<Map<String, dynamic>>? signalSub;
+
+  RTCPeerConnection? peerConnection;
+  RTCDataChannel? dataChannel;
+
+  String? myUuid;
+  String? remoteDeviceUuid;
+  bool isCaller = false;
+  bool handlingOffer = false;
+  bool remoteDescriptionSet = false;
+  final List<RTCIceCandidate> pendingIce = [];
+
+  String? pendingFilePath;
+  Completer<bool>? _incomingDecision;
+  FileReceiver? _receiver;
+
+  DateTime _lastProgressTick = DateTime.fromMillisecondsSinceEpoch(0);
+
+  // Flux des fichiers reçus (chemin local sauvegardé), consommé par main.dart.
+  final StreamController<String> receivedFilesController =
+      StreamController<String>.broadcast();
+  Stream<String> get receivedFiles => receivedFilesController.stream;
+
+  // État observable consommé par TransferBanner.
+  final ValueNotifier<TransferState> transferState =
+      ValueNotifier(TransferState.idle);
+
+  void log(String msg) => debugPrint('[P2P] $msg');
+
+  // Implémenté par P2PService, utilisé par les mixins (cycle de vie).
+  Future<void> disconnect();
+
+  // -------- Helpers d'état partagés --------
+
+  void _setState(TransferState s) {
+    transferState.value = s;
+  }
+
+  // Throttle: on n'émet une update qu'au plus toutes les _progressThrottle,
+  // sauf au début et à la fin (received==0 ou received>=total).
+  void _emitProgress({String? name, required int received, required int total}) {
+    final now = DateTime.now();
+    final isEdge = received == 0 || received >= total;
+    if (!isEdge && now.difference(_lastProgressTick) < _progressThrottle) {
+      return;
+    }
+    _lastProgressTick = now;
+    final cur = transferState.value;
+    _setState(cur.copyWith(
+      phase: P2PPhase.transferring,
+      fileName: name ?? cur.fileName,
+      totalBytes: total > 0 ? total : cur.totalBytes,
+      transferredBytes: received,
+    ));
+  }
+
+  void _scheduleAutoDismiss(Duration after) {
+    Future.delayed(after, () async {
+      // Ne ferme que si on est encore sur la même phase terminale.
+      final p = transferState.value.phase;
+      if (p == P2PPhase.success ||
+          p == P2PPhase.rejected ||
+          p == P2PPhase.failed) {
+        await disconnect();
+      }
+    });
+  }
+}
+
+class P2PService extends _P2PCore
+    with P2PTransfer, P2PWebRTC, P2PSignaling {
+  static final P2PService instance = P2PService.internal();
+  factory P2PService() => instance;
+  P2PService.internal();
+
+  // -------- API publique --------
+
+  // Boot de l'app: récupère l'UUID local et ouvre la SSE en écoute permanente.
   void startListening() {
-    _deviceService.getDeviceUuid().then((uuid) {
-      _myUuid = uuid;
-      _startPolling();
+    deviceService.getDeviceUuid().then((uuid) {
+      myUuid = uuid;
+      ensureSignaling();
     });
   }
 
-  Future<void> connectToDevice(String deviceUuid) async {
+  // (A) déclenche le handshake P2P vers (B) avec un fichier optionnel.
+  Future<void> connectToDevice(String deviceUuid, {String? filePath}) async {
+    log('connectToDevice → $deviceUuid (file=${filePath ?? 'aucun'})');
     await disconnect();
-    _remoteDeviceUuid = deviceUuid;
-    _myUuid ??= await _deviceService.getDeviceUuid();
+    try {
+      pendingFilePath = filePath;
+      remoteDeviceUuid = deviceUuid;
+      myUuid ??= await deviceService.getDeviceUuid();
+      isCaller = true;
+      ensureSignaling();
 
-    _peerConnection = await createPeerConnection({
-      'iceServers': [
-        {'urls': 'stun:stun.l.google.com:19302'},
-      ],
-    });
-
-    _peerConnection!.onIceCandidate = (c) => _sendIceCandidate(c);
-    _peerConnection!.onDataChannel = (ch) {
-      _dataChannel = ch;
-      _dataChannel!.onMessage = (msg) =>
-          onMessageReceived?.call(msg.text ?? '');
-    };
-
-    _dataChannel = await _peerConnection!.createDataChannel(
-      'messages',
-      RTCDataChannelInit(),
-    );
-    _dataChannel!.onMessage = (msg) => onMessageReceived?.call(msg.text ?? '');
-
-    final offer = await _peerConnection!.createOffer();
-    await _peerConnection!.setLocalDescription(offer);
-
-    await _api.post('/p2p/offer', {
-      'from': _myUuid,
-      'to': deviceUuid,
-      'sdp': offer.sdp,
-      'type': offer.type,
-    });
-
-    _startPolling();
-  }
-
-  Future<void> _sendIceCandidate(RTCIceCandidate candidate) async {
-    if (_myUuid == null || _remoteDeviceUuid == null) return;
-    await _api.post('/p2p/ice', {
-      'from': _myUuid,
-      'to': _remoteDeviceUuid,
-      'candidate': candidate.candidate,
-      'sdpMid': candidate.sdpMid,
-      'sdpMLineIndex': candidate.sdpMLineIndex,
-    });
-  }
-
-  void _startPolling() {
-    _pollingTimer?.cancel();
-    _pollingTimer = Timer.periodic(Duration(seconds: 2), (_) async {
-      if (_myUuid == null) return;
-      final res = await _api.get('/p2p/messages/$_myUuid');
-      final msgs = res['messages'] as List?;
-      if (msgs == null) return;
-      for (var msg in msgs) {
-        await _handleSignalMessage(msg);
+      String? fileName;
+      int fileSize = 0;
+      if (filePath != null) {
+        final f = File(filePath);
+        if (await f.exists()) {
+          fileName = f.uri.pathSegments.isNotEmpty
+              ? f.uri.pathSegments.last
+              : 'file.bin';
+          fileSize = await f.length();
+        }
       }
-    });
-  }
+      _setState(TransferState(
+        phase: P2PPhase.awaitingResponse,
+        fileName: fileName,
+        totalBytes: fileSize,
+        isSender: true,
+      ));
 
-  Future<void> _handleSignalMessage(Map<String, dynamic> msg) async {
-    final type = msg['type'] as String?;
-    if (type == null || _peerConnection == null && type != 'offer') return;
+      peerConnection = await createPeer(listenForRemoteChannel: false);
+      bindDataChannel(
+        await peerConnection!.createDataChannel('files', RTCDataChannelInit()),
+      );
 
-    if (type == 'offer') {
-      if (_peerConnection != null) await disconnect();
-      _myUuid ??= await _deviceService.getDeviceUuid();
-      _remoteDeviceUuid = msg['from'] as String?;
-      _peerConnection = await createPeerConnection({
-        'iceServers': [
-          {'urls': 'stun:stun.l.google.com:19302'},
-        ],
+      final offer = await peerConnection!.createOffer();
+      await peerConnection!.setLocalDescription(offer);
+      await signaling!.send('offer', deviceUuid, {
+        'sdp': offer.sdp,
+        'fileName': fileName,
+        'fileSize': fileSize,
       });
-      _peerConnection!.onIceCandidate = (c) => _sendIceCandidate(c);
-      _peerConnection!.onDataChannel = (ch) {
-        _dataChannel = ch;
-        _dataChannel!.onMessage = (msg) {
-          onMessageReceived?.call(msg.text ?? '');
-        };
-      };
-      await _peerConnection!.setRemoteDescription(
-        RTCSessionDescription(msg['sdp'], 'offer'),
-      );
-      final answer = await _peerConnection!.createAnswer();
-      await _peerConnection!.setLocalDescription(answer);
-      await _api.post('/p2p/answer', {
-        'from': _myUuid,
-        'to': msg['from'],
-        'sdp': answer.sdp,
-        'type': answer.type,
-      });
-      _startPolling();
-    } else if (type == 'answer') {
-      await _peerConnection!.setRemoteDescription(
-        RTCSessionDescription(msg['sdp'], 'answer'),
-      );
-    } else if (type == 'ice') {
-      await _peerConnection!.addCandidate(
-        RTCIceCandidate(msg['candidate'], msg['sdpMid'], msg['sdpMLineIndex']),
-      );
+      log('offer envoyée');
+    } catch (e) {
+      log('connectToDevice échec: $e');
+      _setState(transferState.value.copyWith(phase: P2PPhase.failed));
+      rethrow;
     }
   }
 
-  Future<void> sendMessage() async {
-    for (int i = 0; i < 30; i++) {
-      if (_dataChannel?.state == RTCDataChannelState.RTCDataChannelOpen) {
-        _dataChannel!.send(RTCDataChannelMessage('Hello P2P'));
-        return;
-      }
-      await Future.delayed(const Duration(milliseconds: 500));
-    }
+  // L'utilisateur (B) accepte la demande entrante affichée par la bannière.
+  void acceptIncoming() {
+    final c = _incomingDecision;
+    if (c != null && !c.isCompleted) c.complete(true);
   }
 
+  // L'utilisateur (B) refuse la demande entrante.
+  void rejectIncoming() {
+    final c = _incomingDecision;
+    if (c != null && !c.isCompleted) c.complete(false);
+  }
+
+  // Annulation manuelle pendant l'attente / la connexion / le transfert.
+  // Notifie le peer pour qu'il sorte de son état d'attente avant de couper.
+  Future<void> cancel() async {
+    log('annulation manuelle');
+    final remote = remoteDeviceUuid;
+    if (remote != null && signaling != null) {
+      try {
+        await signaling!.send('cancel', remote, {});
+      } catch (e) {
+        log('envoi cancel échoué: $e');
+      }
+    }
+    await disconnect();
+  }
+
+  // Ferme proprement la session P2P et reset tous les flags.
+  @override
   Future<void> disconnect() async {
-    await _dataChannel?.close();
-    await _peerConnection?.close();
-    _dataChannel = null;
-    _peerConnection = null;
-    _remoteDeviceUuid = null;
+    await dataChannel?.close();
+    await peerConnection?.close();
+    dataChannel = null;
+    peerConnection = null;
+    remoteDeviceUuid = null;
+    pendingIce.clear();
+    pendingFilePath = null;
+    _receiver = null;
+    if (_incomingDecision != null && !_incomingDecision!.isCompleted) {
+      _incomingDecision!.complete(false);
+    }
+    _incomingDecision = null;
+    remoteDescriptionSet = false;
+    isCaller = false;
+    _setState(TransferState.idle);
   }
 }

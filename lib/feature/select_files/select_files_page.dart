@@ -3,6 +3,7 @@ import 'package:share_up_front/feature/select_files/select_files_controller.dart
 import 'package:share_up_front/feature/select_files/select_files_state.dart';
 import 'package:share_up_front/widgets/slide_fade_in.dart';
 import 'widgetsSelectFiles/add_files_button.dart';
+import 'widgetsSelectFiles/attachment_picker_sheet.dart'; // 
 import 'widgetsSelectFiles/file_card.dart';
 import 'widgetsSelectFiles/selected_files_summary.dart';
 import 'widgetsSelectFiles/select_files_header.dart';
@@ -10,10 +11,12 @@ import 'widgetsSelectFiles/send_button.dart';
 
 class SelectFilesPage extends StatefulWidget {
   final String deviceName;
+  final String deviceUuid;
 
   const SelectFilesPage({
     super.key,
     required this.deviceName,
+    required this.deviceUuid,
   });
 
   @override
@@ -22,18 +25,20 @@ class SelectFilesPage extends StatefulWidget {
 
 class _SelectFilesPageState extends State<SelectFilesPage> {
   late final SelectFilesController _controller;
+  final Set<String> _animatedFileIds = {};
 
-// Creation de la page  
+  // Creation de la page
   @override
   void initState() {
     super.initState();
     _controller = SelectFilesController(
       deviceName: widget.deviceName,
+      deviceUuid: widget.deviceUuid,
     );
     _controller.loadFiles();
   }
 
-// Destruction de la page
+  // Destruction de la page
   @override
   void dispose() {
     _controller.dispose();
@@ -53,9 +58,7 @@ class _SelectFilesPageState extends State<SelectFilesPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SelectFilesHeader(
-                    deviceName: state.deviceName,
-                  ),
+                  SelectFilesHeader(deviceName: state.deviceName),
 
                   const SizedBox(height: 16),
 
@@ -101,9 +104,8 @@ class _SelectFilesPageState extends State<SelectFilesPage> {
                             ),
                           )
                         : ListView.separated(
-                            key: ValueKey(
-                              'files_list_${state.animationSeed}',
-                            ),
+                            key: ValueKey('files_list_${state.animationSeed}'),
+                            cacheExtent: 1200,
                             itemCount: state.files.length,
                             separatorBuilder: (context, index) {
                               return const SizedBox(height: 14);
@@ -112,13 +114,13 @@ class _SelectFilesPageState extends State<SelectFilesPage> {
                               final file = state.files[index];
 
                               return SlideFadeIn(
-                                key: ValueKey(
-                                  'file_${file.name}_${state.animationSeed}',
-                                ),
+                                key: ValueKey('file_${_fileAnimationId(file)}'),
                                 delay: Duration(milliseconds: 70 * index),
+                                animate: _shouldAnimateFile(file),
                                 child: FileCard(
                                   file: file,
-                                  onTap: () => _controller.toggleFileSelection(index),
+                                  onTap: () =>
+                                      _controller.toggleFileSelection(index),
                                 ),
                               );
                             },
@@ -140,14 +142,18 @@ class _SelectFilesPageState extends State<SelectFilesPage> {
                   const SizedBox(height: 16),
 
                   AddFilesButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      _openAttachmentPicker();
+                    },
                   ),
 
                   const SizedBox(height: 12),
 
                   SendButton(
-                    isEnabled: state.hasSelectedFiles,
-                    onPressed: state.hasSelectedFiles ? () {} : null,
+                    isEnabled: state.hasSelectedFiles && !state.isSending,
+                    onPressed: state.hasSelectedFiles && !state.isSending
+                        ? _controller.sendSelectedFiles
+                        : null,
                   ),
                 ],
               ),
@@ -155,6 +161,45 @@ class _SelectFilesPageState extends State<SelectFilesPage> {
           },
         ),
       ),
+    );
+  }
+
+  bool _shouldAnimateFile(FileItemModel file) {
+    final fileId = _fileAnimationId(file);
+    if (_animatedFileIds.contains(fileId)) return false;
+
+    _animatedFileIds.add(fileId);
+    return true;
+  }
+
+  String _fileAnimationId(FileItemModel file) {
+    return file.path ?? file.name;
+  }
+
+  Future<void> _openAttachmentPicker() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        return AttachmentPickerSheet(
+          onMediaSelected: (assets) async { // Permet de sélections plusieurs medias dans les fichiers recement 
+            Navigator.of(sheetContext).pop();
+            await _controller.addMediaAssets(assets);
+          },
+          onFilesPressed: () async {
+            Navigator.of(sheetContext).pop();
+            await _controller.addFiles(); // Permet d'acceder au fichiers 
+          },
+          onAlbumPressed: () async {
+            Navigator.of(sheetContext).pop();
+            await _controller.addMediaFilesFromAlbum(); // Permet d'acceder a la phototeques
+          },
+        );
+      },
     );
   }
 }

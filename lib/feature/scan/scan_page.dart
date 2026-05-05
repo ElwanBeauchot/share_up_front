@@ -40,6 +40,7 @@ class _ScanPageState extends State<ScanPage> {
       MaterialPageRoute(
         builder: (_) => SelectFilesPage( // Ouvre la page de sélection de fichiers en passant le nom de l'appareil sélectionné
           deviceName: device.name,
+          deviceUuid: device.uuid,
         ),
       ),
     );

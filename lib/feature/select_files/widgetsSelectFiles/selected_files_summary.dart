@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:share_up_front/feature/select_files/select_files_state.dart';
 
+const _selectedFilesListMaxHeight = 126.0;
+
 class SelectedFilesSummary extends StatelessWidget {
   final List<FileItemModel> files;
   final ValueChanged<FileItemModel> onRemove;
@@ -25,11 +27,7 @@ class SelectedFilesSummary extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
-          colors: [
-            Color(0xFF4F46E5),
-            Color(0xFF7C3AED),
-            Color(0xFFA21CAF),
-          ],
+          colors: [Color(0xFF4F46E5), Color(0xFF7C3AED), Color(0xFFA21CAF)],
         ),
         borderRadius: BorderRadius.circular(20),
       ),
@@ -59,15 +57,22 @@ class SelectedFilesSummary extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: files.map((file) {
-              return _SelectedFileChip(
-                label: _truncateFileName(file.name),
-                onRemove: () => onRemove(file),
-              );
-            }).toList(),
+          ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxHeight: _selectedFilesListMaxHeight,
+            ),
+            child: SingleChildScrollView(
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: files.map((file) {
+                  return _SelectedFileChip(
+                    label: _truncateFileName(file.name),
+                    onRemove: () => onRemove(file),
+                  );
+                }).toList(),
+              ),
+            ),
           ),
         ],
       ),
@@ -79,17 +84,14 @@ class _SelectedFileChip extends StatelessWidget {
   final String label;
   final VoidCallback onRemove;
 
-  const _SelectedFileChip({
-    required this.label,
-    required this.onRemove,
-  });
+  const _SelectedFileChip({required this.label, required this.onRemove});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.18),
+        color: Colors.white.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -106,11 +108,7 @@ class _SelectedFileChip extends StatelessWidget {
           const SizedBox(width: 8),
           GestureDetector(
             onTap: onRemove,
-            child: const Icon(
-              Icons.close,
-              size: 14,
-              color: Colors.white,
-            ),
+            child: const Icon(Icons.close, size: 14, color: Colors.white),
           ),
         ],
       ),
