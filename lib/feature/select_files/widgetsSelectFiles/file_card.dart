@@ -141,7 +141,7 @@ class _VideoPreviewState extends State<_VideoPreview> {
   @override
   void initState() {
     super.initState();
-    _thumbnailFuture = _loadThumbnail();
+    _thumbnailFuture = _loadThumbnail(); // Charge la miniature dès l'initialisation
   }
 
   @override
