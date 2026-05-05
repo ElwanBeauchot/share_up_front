@@ -184,7 +184,6 @@ class SelectFilesController extends ValueNotifier<SelectFilesState> {
   // SELECTION ET ENVOI
   //////////////////////////////
 
-
   void toggleFileSelection(int index) {
     final updatedFiles = List<FileItemModel>.from(value.files);
     final file = updatedFiles[index];
@@ -292,10 +291,13 @@ Future<void> _saveRecentFiles(List<FileItemModel> files) async {
   final filesToStore = files
       .where((file) => file.path != null)
       .take(_maxRecentFiles)
-      .map(_fileToJson)
       .toList();
 
-  await prefs.setStringList(_recentFilesStorageKey, filesToStore);
+  await prefs.setStringList(
+    _recentFilesStorageKey,
+    filesToStore.map(_fileToJson).toList(),
+  );
+  await _deleteUnusedLocalMediaFiles(filesToStore);
 }
 
 bool _fileStillExists(FileItemModel file) {
@@ -303,6 +305,32 @@ bool _fileStillExists(FileItemModel file) {
   if (path == null || path.isEmpty) return false;
 
   return File(path).existsSync();
+}
+
+Future<void> _deleteUnusedLocalMediaFiles( // Supprime les fichiers medias qui ne sont plus dans les fichiers recents pour economiser de l'espace.
+  List<FileItemModel> recentFiles,
+) async {
+  final appDirectory = await getApplicationDocumentsDirectory();
+  final mediaDirectory = Directory(
+    '${appDirectory.path}/$_mediaStorageFolderName',
+  );
+
+  if (!mediaDirectory.existsSync()) return;
+
+  final recentPaths = recentFiles
+      .map((file) => file.path)
+      .whereType<String>()
+      .toSet();
+
+  await for (final entity in mediaDirectory.list()) {
+    if (entity is! File || recentPaths.contains(entity.path)) continue;
+
+    try {
+      await entity.delete();
+    } catch (_) {
+      // Si un fichier est temporairement verrouille, on retentera au prochain save.
+    }
+  }
 }
 
 //////////////////////////////
