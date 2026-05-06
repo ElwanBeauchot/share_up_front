@@ -5,6 +5,7 @@ import 'package:share_up_front/widgets/slide_fade_in.dart';
 import 'widgetsSelectFiles/add_files_button.dart';
 import 'widgetsSelectFiles/attachment_picker_sheet.dart'; // 
 import 'widgetsSelectFiles/file_card.dart';
+import 'widgetsSelectFiles/media_album_viewer.dart';
 import 'widgetsSelectFiles/selected_files_summary.dart';
 import 'widgetsSelectFiles/select_files_header.dart';
 import 'widgetsSelectFiles/send_button.dart';
@@ -121,6 +122,9 @@ class _SelectFilesPageState extends State<SelectFilesPage> {
                                   file: file,
                                   onTap: () =>
                                       _controller.toggleFileSelection(index),
+                                  onPreview: _canPreviewMedia(file)
+                                      ? () => _openMediaAlbum(state.files, file)
+                                      : null,
                                 ),
                               );
                             },
@@ -174,6 +178,30 @@ class _SelectFilesPageState extends State<SelectFilesPage> {
 
   String _fileAnimationId(FileItemModel file) {
     return file.path ?? file.name;
+  }
+
+  bool _canPreviewMedia(FileItemModel file) {
+    return file.type == FileType.image || file.type == FileType.video;
+  }
+
+  Future<void> _openMediaAlbum(
+    List<FileItemModel> files,
+    FileItemModel initialFile,
+  ) async {
+    final mediaFiles = files.where(_canPreviewMedia).toList();
+    final initialIndex = mediaFiles.indexOf(initialFile);
+    if (initialIndex == -1) return;
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) {
+          return MediaAlbumViewer(
+            mediaFiles: mediaFiles,
+            initialIndex: initialIndex,
+          );
+        },
+      ),
+    );
   }
 
   Future<void> _openAttachmentPicker() async {
