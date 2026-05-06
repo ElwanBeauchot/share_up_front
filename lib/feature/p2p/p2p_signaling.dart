@@ -56,15 +56,22 @@ mixin P2PSignaling on _P2PCore, P2PWebRTC {
       remoteDeviceUuid = msg['from_uuid'] as String?;
       ensureSignaling();
 
-      final fileName = msg['fileName'] as String? ?? 'fichier';
-      final fileSize = (msg['fileSize'] as num?)?.toInt() ?? 0;
+      final fileCount = (msg['fileCount'] as num?)?.toInt() ?? 1;
+      final totalSize =
+          (msg['totalSize'] as num?)?.toInt() ??
+          (msg['fileSize'] as num?)?.toInt() ??
+          0;
+      final singleName = msg['fileName'] as String?;
+      final fileName = fileCount > 1
+          ? '$fileCount fichiers'
+          : (singleName ?? 'fichier');
 
       _incomingDecision = Completer<bool>();
       _setState(
         TransferState(
           phase: P2PPhase.incomingRequest,
           fileName: fileName,
-          totalBytes: fileSize,
+          totalBytes: totalSize,
           isSender: false,
         ),
       );
