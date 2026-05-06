@@ -1,8 +1,10 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:share_up_front/feature/select_files/select_files_state.dart';
 import 'package:video_player/video_player.dart';
+import 'package:video_thumbnail/video_thumbnail.dart';
 
 class MediaAlbumViewer extends StatefulWidget {
   final List<FileItemModel> mediaFiles;
@@ -25,10 +27,12 @@ class _MediaAlbumViewerState extends State<MediaAlbumViewer> {
   @override
   void initState() {
     super.initState();
+    // On demarre sur l'index du media qui a été tapé dans la galerie
     _currentIndex = widget.initialIndex;
     _pageController = PageController(initialPage: widget.initialIndex);
   }
 
+  // Destruction du controller
   @override
   void dispose() {
     _pageController.dispose();
@@ -37,7 +41,8 @@ class _MediaAlbumViewerState extends State<MediaAlbumViewer> {
 
   @override
   Widget build(BuildContext context) {
-    final currentFile = widget.mediaFiles[_currentIndex];
+    final currentFile =
+        widget.mediaFiles[_currentIndex]; // on récupere le media courant
 
     return Scaffold(
       backgroundColor: const Color(0xFF020617),
@@ -50,14 +55,18 @@ class _MediaAlbumViewerState extends State<MediaAlbumViewer> {
                 controller: _pageController,
                 itemCount: widget.mediaFiles.length,
                 onPageChanged: (index) {
-                  setState(() => _currentIndex = index);
+                  setState(
+                    () => _currentIndex = index,
+                  ); // on met a jour l'index quand on swipe
                 },
                 itemBuilder: (context, index) {
-                  return _buildMediaPage(widget.mediaFiles[index]);
+                  return _buildMediaPage(
+                    widget.mediaFiles[index],
+                  ); // On verifie si il s'agit d'une video sinon on traitre l'image
                 },
               ),
             ),
-            _buildThumbRail(),
+            _buildThumbRail(), // Thumbnail correspond au miniature du media donc la ligne du bas
           ],
         ),
       ),
@@ -70,12 +79,14 @@ class _MediaAlbumViewerState extends State<MediaAlbumViewer> {
       child: Row(
         children: [
           IconButton(
+            // croix pour fermer la visionneuse
             onPressed: () => Navigator.of(context).pop(),
             icon: const Icon(Icons.close_rounded),
             color: Colors.white,
           ),
           Expanded(
             child: Text(
+              // affiche le nom du media en haut de la page
               file.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -88,6 +99,7 @@ class _MediaAlbumViewerState extends State<MediaAlbumViewer> {
             ),
           ),
           SizedBox(
+            // affiche numero du media
             width: 48,
             child: Text(
               '${_currentIndex + 1}/${widget.mediaFiles.length}',
@@ -109,11 +121,14 @@ class _MediaAlbumViewerState extends State<MediaAlbumViewer> {
     if (path == null || !File(path).existsSync()) return _missingMedia();
 
     if (file.type == FileType.video) {
-      return _VideoPlayerPage(path: path);
+      return _VideoPlayerPage(
+        path: path,
+      ); // si vidéo on delaisse la tache a VideoPLayerPage
     }
 
     return Center(
       child: InteractiveViewer(
+        // permet de zoomer
         minScale: 0.8,
         maxScale: 4,
         child: Image.file(
@@ -126,6 +141,7 @@ class _MediaAlbumViewerState extends State<MediaAlbumViewer> {
   }
 
   Widget _buildThumbRail() {
+    // la barre miniature en bas de la page
     return SizedBox(
       height: 86,
       child: ListView.separated(
@@ -140,6 +156,7 @@ class _MediaAlbumViewerState extends State<MediaAlbumViewer> {
     );
   }
 
+  // Fonction qui construit la miniature qu'on appel dans _buildThumbRail
   Widget _buildThumb(FileItemModel file, int index) {
     final path = file.path;
     final isSelected = index == _currentIndex;
@@ -172,11 +189,15 @@ class _MediaAlbumViewerState extends State<MediaAlbumViewer> {
     );
   }
 
+  // Fonction qui verifie si le media existe et peut afficher une miniature
   Widget _buildThumbContent(FileItemModel file, String? path) {
     final canShowImage =
         file.type == FileType.image && path != null && File(path).existsSync();
+    final canShowVideo =
+        file.type == FileType.video && path != null && File(path).existsSync();
 
     if (canShowImage) return Image.file(File(path), fit: BoxFit.cover);
+    if (canShowVideo) return _VideoThumb(path: path);
 
     return const ColoredBox(
       color: Color(0xFF1E293B),
@@ -188,6 +209,7 @@ class _MediaAlbumViewerState extends State<MediaAlbumViewer> {
     );
   }
 
+  // visuel d'erreur si le fichier n'existe pas
   Widget _missingMedia() {
     return const Center(
       child: Icon(
@@ -195,6 +217,46 @@ class _MediaAlbumViewerState extends State<MediaAlbumViewer> {
         color: Color(0xFF94A3B8),
         size: 52,
       ),
+    );
+  }
+}
+
+class _VideoThumb extends StatelessWidget {
+  final String path;
+
+  const _VideoThumb({required this.path});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Uint8List?>(
+      future: VideoThumbnail.thumbnailData(
+        video: path,
+        imageFormat: ImageFormat.JPEG,
+        maxWidth: 180,
+        maxHeight: 180,
+        timeMs: 500,
+        quality: 75,
+      ),
+      builder: (context, snapshot) {
+        final data = snapshot.data;
+
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            if (data == null)
+              const ColoredBox(color: Color(0xFF1E293B))
+            else
+              Image.memory(data, fit: BoxFit.cover, gaplessPlayback: true),
+            const Center(
+              child: Icon(
+                Icons.play_circle_fill_rounded,
+                color: Colors.white,
+                size: 22,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -215,14 +277,20 @@ class _VideoPlayerPageState extends State<_VideoPlayerPage> {
   @override
   void initState() {
     super.initState();
-    _controller = VideoPlayerController.file(File(widget.path));
-    _controller.addListener(_refresh);
+    _controller = VideoPlayerController.file(
+      File(widget.path),
+    ); // on creer un controller pour la video a partir du path
+    _controller.addListener(
+      _refresh,
+    ); // listener pour refresh la page quand elle change d'état
+    // On initialise la video, on dit qu'elle ne boucle pas, et on rafraichier la page
     _initializeFuture = _controller.initialize().then((_) async {
       await _controller.setLooping(false);
-      if (mounted) setState(() {});
+      _refresh();
     });
   }
 
+  // Destruction du controller
   @override
   void dispose() {
     _controller.removeListener(_refresh);
@@ -230,6 +298,7 @@ class _VideoPlayerPageState extends State<_VideoPlayerPage> {
     super.dispose();
   }
 
+  // a chaque changement d'état on refresh l'ui
   void _refresh() {
     if (mounted) setState(() {});
   }
@@ -237,11 +306,12 @@ class _VideoPlayerPageState extends State<_VideoPlayerPage> {
   Future<void> _togglePlayback() async {
     if (!_controller.value.isInitialized) return;
 
+    // si video lancer on met en pause
     if (_controller.value.isPlaying) {
       await _controller.pause();
       return;
     }
-
+    // reviens au debut si la video est fini
     if (_controller.value.position >= _controller.value.duration) {
       await _controller.seekTo(Duration.zero);
     }
@@ -251,7 +321,7 @@ class _VideoPlayerPageState extends State<_VideoPlayerPage> {
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<void>(
-      future: _initializeFuture,
+      future: _initializeFuture, // on attend que la vidéo soit initailisée
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
           return const Center(child: CircularProgressIndicator());
@@ -286,6 +356,7 @@ class _VideoPlayerPageState extends State<_VideoPlayerPage> {
     );
   }
 
+  // récupere l'état de la vidéo afin d'appeler _togglePlayback
   Widget _buildVideoOverlay() {
     final isPlaying = _controller.value.isPlaying;
 
