@@ -9,8 +9,14 @@ import 'package:video_thumbnail/video_thumbnail.dart';
 class FileCard extends StatelessWidget {
   final FileItemModel file;
   final VoidCallback onTap;
+  final VoidCallback? onPreview;
 
-  const FileCard({super.key, required this.file, required this.onTap});
+  const FileCard({
+    super.key,
+    required this.file,
+    required this.onTap,
+    this.onPreview,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -45,6 +51,7 @@ class FileCard extends StatelessWidget {
               file: file,
               icon: fileStyle.icon,
               color: fileStyle.color,
+              onPreview: onPreview,
             ),
 
             const SizedBox(width: 14),
@@ -88,11 +95,13 @@ class _FilePreview extends StatelessWidget {
   final FileItemModel file;
   final IconData icon;
   final Color color;
+  final VoidCallback? onPreview;
 
   const _FilePreview({
     required this.file,
     required this.icon,
     required this.color,
+    required this.onPreview,
   });
 
   @override
@@ -100,9 +109,16 @@ class _FilePreview extends StatelessWidget {
     final path = file.path;
     final canPreviewImage =
         file.type == FileType.image && path != null && File(path).existsSync();
+    final canOpenPreview =
+        onPreview != null &&
+        (file.type == FileType.image || file.type == FileType.video) &&
+        path != null &&
+        File(path).existsSync();
+
+    Widget preview;
 
     if (canPreviewImage) {
-      return ClipRRect(
+      preview = ClipRRect(
         borderRadius: BorderRadius.circular(14),
         child: Image.file(
           File(path),
@@ -115,14 +131,43 @@ class _FilePreview extends StatelessWidget {
           },
         ),
       );
-    }
-
-    if (file.type == FileType.video) {
+    } else if (file.type == FileType.video) {
       final canPreviewVideo = path != null && File(path).existsSync();
-      if (canPreviewVideo) return _VideoPreview(path: path);
+      preview = canPreviewVideo
+          ? _VideoPreview(path: path)
+          : _IconPreview(icon: icon, color: color);
+    } else {
+      preview = _IconPreview(icon: icon, color: color);
     }
 
-    return _IconPreview(icon: icon, color: color);
+    if (!canOpenPreview) return preview;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onPreview,
+      child: Stack(
+        children: [
+          preview,
+          Positioned(
+            right: 4,
+            top: 4,
+            child: Container(
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.46),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Icon(
+                Icons.open_in_full_rounded,
+                color: Colors.white,
+                size: 11,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -141,7 +186,8 @@ class _VideoPreviewState extends State<_VideoPreview> {
   @override
   void initState() {
     super.initState();
-    _thumbnailFuture = _loadThumbnail(); // Charge la miniature dès l'initialisation
+    _thumbnailFuture =
+        _loadThumbnail(); // Charge la miniature dès l'initialisation
   }
 
   @override
@@ -237,28 +283,20 @@ class _SelectCircle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 22,
-      height: 22,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 140),
+      width: 24,
+      height: 24,
       decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.white,
+        color: isSelected ? AppColors.indigo : Colors.white,
+        borderRadius: BorderRadius.circular(7),
         border: Border.all(
           color: isSelected ? AppColors.indigo : const Color(0xFFD1D5DB),
           width: 2,
         ),
       ),
       child: isSelected
-          ? Center(
-              child: Container(
-                width: 9,
-                height: 9,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.indigo,
-                ),
-              ),
-            )
+          ? const Icon(Icons.check_rounded, size: 17, color: Colors.white)
           : null,
     );
   }
