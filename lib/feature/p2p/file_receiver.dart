@@ -10,11 +10,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_file_dialog/flutter_file_dialog.dart';
 import 'package:path_provider/path_provider.dart';
 
-typedef ReceiverProgressCallback = void Function(
-  String fileName,
-  int received,
-  int total,
-);
+typedef ReceiverProgressCallback =
+    void Function(String fileName, int received, int total);
 typedef ReceiverCompletedCallback = void Function(String savedPath);
 typedef AckSender = void Function(String json);
 
@@ -23,6 +20,7 @@ typedef AckSender = void Function(String json);
 class FileReceiver {
   final ReceiverProgressCallback? onProgress;
   final ReceiverCompletedCallback? onCompleted;
+  final VoidCallback? onAllCompleted;
   final AckSender sendAck;
 
   _Incoming? _current;
@@ -31,6 +29,7 @@ class FileReceiver {
     required this.sendAck,
     this.onProgress,
     this.onCompleted,
+    this.onAllCompleted,
   });
 
   // Renvoie true si le message a été consommé (header / ack), false sinon.
@@ -38,7 +37,14 @@ class FileReceiver {
   bool handleText(String raw) {
     final data = jsonDecode(raw);
     if (data is! Map<String, dynamic>) return false;
-    if (data['type'] != 'file_start') return false;
+    final type = data['type'];
+
+    if (type == 'transfer_done') {
+      onAllCompleted?.call();
+      return true;
+    }
+    if (type != 'file_start') return false;
+
     final name = data['name'] as String? ?? 'file.bin';
     final size = (data['size'] as num?)?.toInt() ?? 0;
     debugPrint('[FileReceiver] header reçu: "$name" ($size octets)');

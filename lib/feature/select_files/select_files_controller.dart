@@ -197,15 +197,19 @@ class SelectFilesController extends ValueNotifier<SelectFilesState> {
     final selected = value.selectedFiles;
     if (selected.isEmpty) return;
 
-    final filePath = selected.first.path;
-    if (filePath == null || filePath.isEmpty) {
-      value = value.copyWith(errorMessage: 'Chemin du fichier introuvable.');
+    final paths = selected
+        .map((f) => f.path)
+        .whereType<String>()
+        .where((p) => p.isNotEmpty)
+        .toList();
+    if (paths.isEmpty) {
+      value = value.copyWith(errorMessage: 'Chemins introuvables.');
       return;
     }
 
     value = value.copyWith(isSending: true, errorMessage: null);
     try {
-      await _p2p.connectToDevice(deviceUuid, filePath: filePath);
+      await _p2p.connectToDevice(deviceUuid, filePaths: paths);
     } catch (e) {
       value = value.copyWith(errorMessage: 'Echec de l\'envoi P2P: $e');
     } finally {

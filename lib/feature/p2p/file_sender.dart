@@ -23,10 +23,35 @@ typedef ProgressCallback = void Function(int sent, int total);
 //   3) côté B renvoie {type:'file_received'} (géré par l'orchestrateur)
 class FileSender {
   final RTCDataChannel channel;
+  // Completer résolu quand le récepteur renvoie {type:'file_received'}.
+  Completer<void>? _ackCompleter;
 
   FileSender(this.channel);
 
-  Future<void> send(String path, {ProgressCallback? onProgress}) async {
+  // À appeler depuis l'orchestrateur quand un ack arrive.
+  void notifyAckReceived() {
+    final c = _ackCompleter;
+    if (c != null && !c.isCompleted) c.complete();
+  }
+
+  // Envoie N fichiers d'affilée, puis signale la fin de session.
+  Future<void> sendAll(
+    List<String> paths, {
+    void Function(int fileIndex, int total, int sent, int size)? onProgress,
+  }) async {
+    for (var i = 0; i < paths.length; i++) {
+      _ackCompleter = Completer<void>();
+      await _sendOne(
+        paths[i],
+        onProgress: (sent, size) =>
+            onProgress?.call(i, paths.length, sent, size),
+      );
+      await _ackCompleter!.future; // attend file_received avant le suivant
+    }
+    channel.send(RTCDataChannelMessage(jsonEncode({'type': 'transfer_done'})));
+  }
+
+  Future<void> _sendOne(String path, {ProgressCallback? onProgress}) async {
     final file = File(path);
     if (!await file.exists()) {
       throw FileSystemException('fichier introuvable', path);
@@ -35,8 +60,6 @@ class FileSender {
     final name = file.uri.pathSegments.isNotEmpty
         ? file.uri.pathSegments.last
         : 'file.bin';
-
-    debugPrint('[FileSender] envoi "$name" ($size octets)');
 
     channel.send(
       RTCDataChannelMessage(
@@ -48,7 +71,6 @@ class FileSender {
     onProgress?.call(sent, size);
 
     await for (final chunk in file.openRead()) {
-      // openRead() peut renvoyer des morceaux > _chunkSize, on resplit.
       for (var offset = 0; offset < chunk.length; offset += _chunkSize) {
         final end = (offset + _chunkSize <= chunk.length)
             ? offset + _chunkSize
@@ -60,11 +82,8 @@ class FileSender {
         onProgress?.call(sent, size);
       }
     }
-    debugPrint('[FileSender] $sent/$size octets envoyés, attente ack…');
   }
 
-  // Backpressure: on attend que le buffer SCTP redescende avant de continuer
-  // pour ne pas saturer la mémoire native.
   Future<void> _waitForBuffer() async {
     while ((channel.bufferedAmount ?? 0) > _maxBuffered) {
       await Future.delayed(const Duration(milliseconds: 20));
