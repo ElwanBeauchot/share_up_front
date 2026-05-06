@@ -26,7 +26,8 @@ mixin P2PWebRTC on _P2PCore, P2PTransfer {
       onProgress: (name, received, total) {
         _emitProgress(name: name, received: received, total: total);
       },
-      onCompleted: _onFileReceived,
+      onCompleted: (savedPath) => receivedFilesController.add(savedPath),
+      onAllCompleted: _onAllTransfersDone,
     );
     ch.onDataChannelState = (s) {
       log('data channel: $s');
@@ -37,9 +38,9 @@ mixin P2PWebRTC on _P2PCore, P2PTransfer {
             transferredBytes: 0,
           ),
         );
-        if (isCaller && pendingFilePath != null) {
+        if (isCaller && pendingFilePaths.isNotEmpty) {
           // ignore: discarded_futures
-          _runSender(pendingFilePath!);
+          _runSender(pendingFilePaths);
         }
       }
     };

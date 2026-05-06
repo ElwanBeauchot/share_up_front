@@ -47,7 +47,7 @@ abstract class _P2PCore {
   bool remoteDescriptionSet = false;
   final List<RTCIceCandidate> pendingIce = [];
 
-  String? pendingFilePath;
+  List<String> pendingFilePaths = const [];
   Completer<bool>? _incomingDecision;
   FileReceiver? _receiver;
 
@@ -59,8 +59,9 @@ abstract class _P2PCore {
   Stream<String> get receivedFiles => receivedFilesController.stream;
 
   // État observable consommé par TransferBanner.
-  final ValueNotifier<TransferState> transferState =
-      ValueNotifier(TransferState.idle);
+  final ValueNotifier<TransferState> transferState = ValueNotifier(
+    TransferState.idle,
+  );
 
   void log(String msg) => debugPrint('[P2P] $msg');
 
@@ -75,7 +76,11 @@ abstract class _P2PCore {
 
   // Throttle: on n'émet une update qu'au plus toutes les _progressThrottle,
   // sauf au début et à la fin (received==0 ou received>=total).
-  void _emitProgress({String? name, required int received, required int total}) {
+  void _emitProgress({
+    String? name,
+    required int received,
+    required int total,
+  }) {
     final now = DateTime.now();
     final isEdge = received == 0 || received >= total;
     if (!isEdge && now.difference(_lastProgressTick) < _progressThrottle) {
@@ -83,12 +88,14 @@ abstract class _P2PCore {
     }
     _lastProgressTick = now;
     final cur = transferState.value;
-    _setState(cur.copyWith(
-      phase: P2PPhase.transferring,
-      fileName: name ?? cur.fileName,
-      totalBytes: total > 0 ? total : cur.totalBytes,
-      transferredBytes: received,
-    ));
+    _setState(
+      cur.copyWith(
+        phase: P2PPhase.transferring,
+        fileName: name ?? cur.fileName,
+        totalBytes: total > 0 ? total : cur.totalBytes,
+        transferredBytes: received,
+      ),
+    );
   }
 
   void _scheduleAutoDismiss(Duration after) {
@@ -104,8 +111,7 @@ abstract class _P2PCore {
   }
 }
 
-class P2PService extends _P2PCore
-    with P2PTransfer, P2PWebRTC, P2PSignaling {
+class P2PService extends _P2PCore with P2PTransfer, P2PWebRTC, P2PSignaling {
   static final P2PService instance = P2PService.internal();
   factory P2PService() => instance;
   P2PService.internal();
@@ -121,33 +127,40 @@ class P2PService extends _P2PCore
   }
 
   // (A) déclenche le handshake P2P vers (B) avec un fichier optionnel.
-  Future<void> connectToDevice(String deviceUuid, {String? filePath}) async {
-    log('connectToDevice → $deviceUuid (file=${filePath ?? 'aucun'})');
+  Future<void> connectToDevice(
+    String deviceUuid, {
+    List<String> filePaths = const [],
+  }) async {
+    log('connectToDevice → $deviceUuid (${filePaths.length} fichier(s))');
     await disconnect();
     try {
-      pendingFilePath = filePath;
+      pendingFilePaths = filePaths;
       remoteDeviceUuid = deviceUuid;
       myUuid ??= await deviceService.getDeviceUuid();
       isCaller = true;
       ensureSignaling();
 
-      String? fileName;
-      int fileSize = 0;
-      if (filePath != null) {
-        final f = File(filePath);
+      // Total cumulé pour l'UI (somme des tailles).
+      int totalBytes = 0;
+      final names = <String>[];
+      for (final p in filePaths) {
+        final f = File(p);
         if (await f.exists()) {
-          fileName = f.uri.pathSegments.isNotEmpty
-              ? f.uri.pathSegments.last
-              : 'file.bin';
-          fileSize = await f.length();
+          totalBytes += await f.length();
+          names.add(f.uri.pathSegments.last);
         }
       }
-      _setState(TransferState(
-        phase: P2PPhase.awaitingResponse,
-        fileName: fileName,
-        totalBytes: fileSize,
-        isSender: true,
-      ));
+
+      _setState(
+        TransferState(
+          phase: P2PPhase.awaitingResponse,
+          fileName: names.length == 1
+              ? names.first
+              : '${names.length} fichiers',
+          totalBytes: totalBytes,
+          isSender: true,
+        ),
+      );
 
       peerConnection = await createPeer(listenForRemoteChannel: false);
       bindDataChannel(
@@ -158,10 +171,12 @@ class P2PService extends _P2PCore
       await peerConnection!.setLocalDescription(offer);
       await signaling!.send('offer', deviceUuid, {
         'sdp': offer.sdp,
-        'fileName': fileName,
-        'fileSize': fileSize,
+        'fileCount': filePaths.length,
+        'totalSize': totalBytes,
+        // tu peux garder fileName/fileSize pour rétro-compat de la bannière côté B.
+        'fileName': names.length == 1 ? names.first : null,
+        'fileSize': totalBytes,
       });
-      log('offer envoyée');
     } catch (e) {
       log('connectToDevice échec: $e');
       _setState(transferState.value.copyWith(phase: P2PPhase.failed));
@@ -205,7 +220,7 @@ class P2PService extends _P2PCore
     peerConnection = null;
     remoteDeviceUuid = null;
     pendingIce.clear();
-    pendingFilePath = null;
+    pendingFilePaths = const [];
     _receiver = null;
     if (_incomingDecision != null && !_incomingDecision!.isCompleted) {
       _incomingDecision!.complete(false);

@@ -1,32 +1,45 @@
-// Envoi d'un fichier sur un DataChannel ouvert (côté A).
-// Protocole: header texte {type:'file_start', name, size} puis N chunks
-// binaires de 16 KB avec backpressure SCTP via bufferedAmount.
+// Envoi de fichiers sur un DataChannel ouvert (côté A).
+// Pour chaque fichier: {file_start} + N chunks binaires + ack {file_received}.
+// Termine la session par {transfer_done}.
 
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
-// Taille de chunk pour le DataChannel SCTP (recommandé ≤ 16 KB).
-const int _chunkSize = 16 * 1024;
-// Au-delà de cette quantité bufferisée côté SCTP, on attend.
-const int _maxBuffered = 1 * 1024 * 1024;
+const int _chunkSize = 16 * 1024; // SCTP recommande ≤ 16 KB
+const int _maxBuffered = 1 * 1024 * 1024; // backpressure
 
-typedef ProgressCallback = void Function(int sent, int total);
+typedef SenderProgress =
+    void Function(int fileIndex, int totalFiles, int sent, int size);
 
-// Envoie un fichier sur un DataChannel ouvert.
-// Protocole minimal:
-//   1) {type:'file_start', name, size} en texte
-//   2) N chunks binaires
-//   3) côté B renvoie {type:'file_received'} (géré par l'orchestrateur)
 class FileSender {
   final RTCDataChannel channel;
+  Completer<void>? _ack;
 
   FileSender(this.channel);
 
-  Future<void> send(String path, {ProgressCallback? onProgress}) async {
+  void notifyAckReceived() {
+    if (_ack?.isCompleted == false) _ack!.complete();
+  }
+
+  Future<void> sendAll(List<String> paths, {SenderProgress? onProgress}) async {
+    for (var i = 0; i < paths.length; i++) {
+      _ack = Completer<void>();
+      await _sendOne(paths[i], i, paths.length, onProgress);
+      await _ack!.future;
+    }
+    _sendJson({'type': 'transfer_done'});
+  }
+
+  Future<void> _sendOne(
+    String path,
+    int index,
+    int total,
+    SenderProgress? onProgress,
+  ) async {
     final file = File(path);
     if (!await file.exists()) {
       throw FileSystemException('fichier introuvable', path);
@@ -36,35 +49,30 @@ class FileSender {
         ? file.uri.pathSegments.last
         : 'file.bin';
 
-    debugPrint('[FileSender] envoi "$name" ($size octets)');
-
-    channel.send(
-      RTCDataChannelMessage(
-        jsonEncode({'type': 'file_start', 'name': name, 'size': size}),
-      ),
-    );
+    _sendJson({'type': 'file_start', 'name': name, 'size': size});
 
     var sent = 0;
-    onProgress?.call(sent, size);
+    onProgress?.call(index, total, sent, size);
 
     await for (final chunk in file.openRead()) {
-      // openRead() peut renvoyer des morceaux > _chunkSize, on resplit.
-      for (var offset = 0; offset < chunk.length; offset += _chunkSize) {
-        final end = (offset + _chunkSize <= chunk.length)
-            ? offset + _chunkSize
-            : chunk.length;
-        final slice = Uint8List.fromList(chunk.sublist(offset, end));
+      final bytes = chunk is Uint8List ? chunk : Uint8List.fromList(chunk);
+      for (var o = 0; o < bytes.length; o += _chunkSize) {
+        final slice = Uint8List.sublistView(
+          bytes,
+          o,
+          math.min(o + _chunkSize, bytes.length),
+        );
         await _waitForBuffer();
         channel.send(RTCDataChannelMessage.fromBinary(slice));
-        sent += slice.length;
-        onProgress?.call(sent, size);
+        sent += slice.lengthInBytes;
+        onProgress?.call(index, total, sent, size);
       }
     }
-    debugPrint('[FileSender] $sent/$size octets envoyés, attente ack…');
   }
 
-  // Backpressure: on attend que le buffer SCTP redescende avant de continuer
-  // pour ne pas saturer la mémoire native.
+  void _sendJson(Map<String, Object?> data) =>
+      channel.send(RTCDataChannelMessage(jsonEncode(data)));
+
   Future<void> _waitForBuffer() async {
     while ((channel.bufferedAmount ?? 0) > _maxBuffered) {
       await Future.delayed(const Duration(milliseconds: 20));

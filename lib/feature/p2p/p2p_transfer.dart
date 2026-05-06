@@ -5,17 +5,20 @@
 part of '../../services/p2p_service.dart';
 
 mixin P2PTransfer on _P2PCore {
-  Future<void> _runSender(String path) async {
+  FileSender? _sender;
+
+  Future<void> _runSender(List<String> paths) async {
     final ch = dataChannel;
     if (ch == null) return;
-    final sender = FileSender(ch);
+    final sender = _sender = FileSender(ch);
     try {
-      await sender.send(
-        path,
-        onProgress: (sent, total) {
-          _emitProgress(received: sent, total: total);
+      await sender.sendAll(
+        paths,
+        onProgress: (i, total, sent, size) {
+          _emitProgress(received: sent, total: size);
         },
       );
+      _onAllTransfersDone();
     } catch (e) {
       log('envoi échec: $e');
       _setState(transferState.value.copyWith(phase: P2PPhase.failed));
@@ -24,21 +27,14 @@ mixin P2PTransfer on _P2PCore {
 
   Future<void> _onTextMessage(String raw) async {
     if (_receiver?.handleText(raw) ?? false) return;
-    // Côté A: ack final → succès puis fermeture.
     if (raw.contains('file_received')) {
-      log('ack reçu, succès');
-      _setState(
-        transferState.value.copyWith(
-          phase: P2PPhase.success,
-          transferredBytes: transferState.value.totalBytes,
-        ),
-      );
-      _scheduleAutoDismiss(_successDelay);
+      log('ack reçu');
+      _sender?.notifyAckReceived(); // débloque l'envoi du fichier suivant
     }
   }
 
-  void _onFileReceived(String savedPath) {
-    receivedFilesController.add(savedPath);
+  // Appelé par FileReceiver.onAllCompleted (côté B) OU par sendAll au retour (côté A).
+  void _onAllTransfersDone() {
     _setState(
       transferState.value.copyWith(
         phase: P2PPhase.success,
