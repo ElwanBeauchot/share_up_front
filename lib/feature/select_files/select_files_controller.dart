@@ -208,7 +208,11 @@ class SelectFilesController extends ValueNotifier<SelectFilesState> {
 
     value = value.copyWith(isSending: true, errorMessage: null);
     try {
-      await _p2p.connectToDevice(deviceUuid, filePaths: paths);
+      await _p2p.connectToDevice(
+        deviceUuid,
+        filePaths: paths,
+        deviceName: value.deviceName,
+      );
     } catch (e) {
       value = value.copyWith(errorMessage: 'Echec de l\'envoi P2P: $e');
     } finally {
@@ -311,7 +315,8 @@ bool _fileStillExists(FileItemModel file) {
   return File(path).existsSync();
 }
 
-Future<void> _deleteUnusedLocalMediaFiles( // Supprime les fichiers medias qui ne sont plus dans les fichiers recents pour economiser de l'espace.
+Future<void> _deleteUnusedLocalMediaFiles(
+  // Supprime les fichiers medias qui ne sont plus dans les fichiers recents pour economiser de l'espace.
   List<FileItemModel> recentFiles,
 ) async {
   final appDirectory = await getApplicationDocumentsDirectory();

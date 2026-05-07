@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'api_service.dart';
 import 'device_service.dart';
+import '../feature/history/history_service.dart';
 import '../feature/p2p/file_receiver.dart';
 import '../feature/p2p/file_sender.dart';
 import '../feature/p2p/ice_config.dart';
@@ -42,6 +43,7 @@ abstract class _P2PCore {
 
   String? myUuid;
   String? remoteDeviceUuid;
+  String? remoteDeviceName;
   bool isCaller = false;
   bool handlingOffer = false;
   bool remoteDescriptionSet = false;
@@ -109,6 +111,20 @@ abstract class _P2PCore {
       }
     });
   }
+
+  // A CHANGER PAR PSEUDO UNE FOIS IMPLEMENTER 
+  // 1 . PSEUDO a enregistrer dans le local storage
+  // 2. recuperer le pseudo dans le local storage et l'envoyer a la BDD 
+  // 3. recuperer le pseudo de la BDD pour l'afficher dans la bannière du receveur
+  Future<String> _getLocalDeviceName() async {
+    try {
+      final deviceInfo = await deviceService.getDeviceInfo();
+      final name = deviceInfo.name.trim();
+      if (name.isNotEmpty) return name;
+    } catch (_) {}
+
+    return 'Appareil inconnu';
+  }
 }
 
 class P2PService extends _P2PCore with P2PTransfer, P2PWebRTC, P2PSignaling {
@@ -130,12 +146,14 @@ class P2PService extends _P2PCore with P2PTransfer, P2PWebRTC, P2PSignaling {
   Future<void> connectToDevice(
     String deviceUuid, {
     List<String> filePaths = const [],
+    String? deviceName,
   }) async {
     log('connectToDevice → $deviceUuid (${filePaths.length} fichier(s))');
     await disconnect();
     try {
       pendingFilePaths = filePaths;
       remoteDeviceUuid = deviceUuid;
+      remoteDeviceName = deviceName;
       myUuid ??= await deviceService.getDeviceUuid();
       isCaller = true;
       ensureSignaling();
@@ -173,6 +191,7 @@ class P2PService extends _P2PCore with P2PTransfer, P2PWebRTC, P2PSignaling {
         'sdp': offer.sdp,
         'fileCount': filePaths.length,
         'totalSize': totalBytes,
+        'senderDeviceName': await _getLocalDeviceName(),
         // tu peux garder fileName/fileSize pour rétro-compat de la bannière côté B.
         'fileName': names.length == 1 ? names.first : null,
         'fileSize': totalBytes,
@@ -219,6 +238,7 @@ class P2PService extends _P2PCore with P2PTransfer, P2PWebRTC, P2PSignaling {
     dataChannel = null;
     peerConnection = null;
     remoteDeviceUuid = null;
+    remoteDeviceName = null;
     pendingIce.clear();
     pendingFilePaths = const [];
     _receiver = null;

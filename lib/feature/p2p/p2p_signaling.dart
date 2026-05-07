@@ -54,6 +54,7 @@ mixin P2PSignaling on _P2PCore, P2PWebRTC {
       if (peerConnection != null) await disconnect();
       myUuid ??= await deviceService.getDeviceUuid();
       remoteDeviceUuid = msg['from_uuid'] as String?;
+      remoteDeviceName = msg['senderDeviceName'] as String?;
       ensureSignaling();
 
       final fileCount = (msg['fileCount'] as num?)?.toInt() ?? 1;
