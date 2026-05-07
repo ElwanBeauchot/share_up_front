@@ -21,12 +21,16 @@ mixin P2PWebRTC on _P2PCore, P2PTransfer {
 
   void bindDataChannel(RTCDataChannel ch) {
     dataChannel = ch;
+    _receivedFilePaths.clear();
     _receiver = FileReceiver(
       sendAck: (json) => ch.send(RTCDataChannelMessage(json)),
       onProgress: (name, received, total) {
         _emitProgress(name: name, received: received, total: total);
       },
-      onCompleted: (savedPath) => receivedFilesController.add(savedPath),
+      onCompleted: (savedPath) {
+        receivedFilesController.add(savedPath);
+        _receivedFilePaths.add(savedPath);
+      },
       onAllCompleted: _onAllTransfersDone,
     );
     ch.onDataChannelState = (s) {
