@@ -20,8 +20,8 @@ part '../feature/p2p/p2p_signaling.dart';
 part '../feature/p2p/p2p_transfer.dart';
 part '../feature/p2p/p2p_webrtc.dart';
 
-// Throttle des updates de progression vers la UI (~8 fps suffisent visuellement).
-const Duration _progressThrottle = Duration(milliseconds: 120);
+// Progression UI ~16 fps (réactive ; peu d’impact sur le débit réel).
+const Duration _progressThrottle = Duration(milliseconds: 60);
 // Auto-dismiss des phases terminales (success/rejected/failed).
 const Duration _successDelay = Duration(milliseconds: 800);
 const Duration _rejectedDelay = Duration(seconds: 3);

@@ -9,8 +9,10 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
-const int _chunkSize = 16 * 1024; // SCTP recommande ≤ 16 KB
-const int _maxBuffered = 1 * 1024 * 1024; // backpressure
+// Moins d’appels send/onMessage ; la pile SCTP fragmente si besoin.
+const int _chunkSize = 256 * 1024;
+// Plus de données « en vol » avant backpressure (meilleur débit si le lien suit).
+const int _maxBuffered = 8 * 1024 * 1024;
 
 typedef SenderProgress =
     void Function(int fileIndex, int totalFiles, int sent, int size);
